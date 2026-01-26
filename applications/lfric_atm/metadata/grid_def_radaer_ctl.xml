@@ -4,11 +4,23 @@
     <domain domain_ref="face"/>
     <axis axis_ref="vert_axis_full_levels"/>
   </grid>
+  <grid id="coarse_full_face_grid">
+    <domain domain_ref="multigrid_l1_face"/>
+    <axis axis_ref="vert_axis_full_levels"/>
+  </grid>
   <grid id="var_face">
     <domain domain_ref="face"/>
+  </grid>
+  <grid id="var_face_dust">
+    <domain domain_ref="face"/>
+    <axis axis_ref="dust_divisions"/>
   </grid>
   <grid id="var_face_aod_wavel">
     <domain domain_ref="face"/>
     <axis axis_ref="aod_wavel"/>
+  </grid>
+  <grid id="var_face_emiss">
+    <domain domain_ref="face"/>
+    <axis axis_ref="emiss_axis"/>
   </grid>
 </grid_definition>

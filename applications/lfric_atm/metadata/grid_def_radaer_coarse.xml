@@ -7,8 +7,16 @@
   <grid id="var_face">
     <domain domain_ref="multigrid_l2_face"/>
   </grid>
+  <grid id="var_face_dust">
+    <domain domain_ref="multigrid_l2_face"/>
+    <axis axis_ref="dust_divisions"/>
+  </grid>
   <grid id="var_face_aod_wavel">
     <domain domain_ref="multigrid_l2_face"/>
     <axis axis_ref="aod_wavel"/>
+  </grid>
+  <grid id="var_face_emiss">
+    <domain domain_ref="multigrid_l2_face"/>
+    <axis axis_ref="emiss_axis"/>
   </grid>
 </grid_definition>

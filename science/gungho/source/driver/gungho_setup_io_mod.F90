@@ -198,6 +198,8 @@ module gungho_setup_io_mod
     real(r_second), allocatable :: all_checkpoint_times(:)
 #ifdef UM_PHYSICS
     character(len=str_max_filename) :: aerosol_ancil_directory
+    character(len=str_max_filename) :: emiss_ancil_directory
+    character(len=str_max_filename) :: ox_ancil_directory
     character(len=str_max_filename) :: ozone_ancil_directory
 #endif
     integer(i_def)                  :: ts_start, ts_end
@@ -470,74 +472,78 @@ module gungho_setup_io_mod
     if ( (chem_scheme == chem_scheme_strattrop    .or.        &
           chem_scheme == chem_scheme_strat_test)   .and.     &
          ancil_option == ancil_option_updating ) then
-
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      if ( coarse_aerosol_ancil ) then
+        emiss_ancil_directory = coarse_ancil_directory
+      else
+        emiss_ancil_directory = ancil_directory
+      end if
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_c2h6_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                &
                                                          xios_id="emiss_c2h6_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_c3h8_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                &
                                                          xios_id="emiss_c3h8_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_c5h8_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                &
                                                          xios_id="emiss_c5h8_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_ch4_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,               &
                                                          xios_id="emiss_ch4_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_co_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,              &
                                                          xios_id="emiss_co_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_hcho_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                &
                                                          xios_id="emiss_hcho_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_me2co_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                 &
                                                          xios_id="emiss_me2co_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_mecho_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                 &
                                                          xios_id="emiss_mecho_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_nh3_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,               &
                                                          xios_id="emiss_nh3_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_no_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,              &
                                                          xios_id="emiss_no_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_meoh_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                &
                                                          xios_id="emiss_meoh_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_no_aircrft_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                          xios_id="emiss_no_aircrft_ancil", &
@@ -548,98 +554,102 @@ module gungho_setup_io_mod
 
     if ( glomap_mode == glomap_mode_ukca   .and.            &
          ancil_option == ancil_option_updating ) then
-
+      if ( coarse_aerosol_ancil ) then
+        emiss_ancil_directory = coarse_ancil_directory
+      else
+        emiss_ancil_directory = ancil_directory
+      end if
       ! Set aerosol emission ancil filenames from namelist
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_bc_biofuel_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                          xios_id="emiss_bc_biofuel_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_bc_fossil_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                     &
                                                          xios_id="emiss_bc_fossil_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
       if (emissions == emissions_GC3) then
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_bc_biomass_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                            xios_id="emiss_bc_biomass_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
       else if (emissions == emissions_GC5) then
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_bc_biomass_hi_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                         &
                                                            xios_id="emiss_bc_biomass_hi_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
 
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_bc_biomass_lo_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                         &
                                                            xios_id="emiss_bc_biomass_lo_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
       end if
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_dms_land_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                    &
                                                          xios_id="emiss_dms_land_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(dms_conc_ocean_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                    &
                                                          xios_id="dms_conc_ocean_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_monoterp_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                    &
                                                          xios_id="emiss_monoterp_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_om_biofuel_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                          xios_id="emiss_om_biofuel_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_om_fossil_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                     &
                                                          xios_id="emiss_om_fossil_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
       if (emissions == emissions_GC3) then
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_om_biomass_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                            xios_id="emiss_om_biomass_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
       else if (emissions == emissions_GC5) then
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_om_biomass_hi_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                         &
                                                            xios_id="emiss_om_biomass_hi_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
 
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_om_biomass_lo_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                         &
                                                            xios_id="emiss_om_biomass_lo_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
       end if
 
-      write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+      write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_so2_low_ancil_path)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                   &
                                                          xios_id="emiss_so2_low_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
       if (emissions == emissions_GC3) then
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_so2_high_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                    &
                                                            xios_id="emiss_so2_high_ancil", &
@@ -649,7 +659,7 @@ module gungho_setup_io_mod
       ! single time file only needs reading on cold start
       if (init_option == init_option_fd_start_dump .and. &
            .not. checkpoint_read) then
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_so2_nat_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,        &
                                                          xios_id="emiss_so2_nat_ancil", &
@@ -658,31 +668,31 @@ module gungho_setup_io_mod
 
       ! Setup Offline oxidants ancillary files
       if ( chem_scheme == chem_scheme_offline_ox ) then
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(h2o2_limit_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,              &
                                                          xios_id="h2o2_limit_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(ho2_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,       &
                                                          xios_id="ho2_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(no3_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,       &
                                                          xios_id="no3_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(o3_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,      &
                                                          xios_id="o3_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
-        write(ancil_fname,'(A)') trim(ancil_directory)//'/'// &
+        write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(oh_ancil_path)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,      &
                                                          xios_id="oh_ancil", &
