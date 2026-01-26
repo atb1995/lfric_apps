@@ -527,6 +527,7 @@ contains
     type(mesh_type), pointer :: twod_mesh           => null()
     type(mesh_type), pointer :: orography_twod_mesh => null()
     type(mesh_type), pointer :: orography_mesh      => null()
+    type(mesh_type), pointer :: aerosol_mesh      => null()
 
     procedure(filelist_populator), pointer :: files_init_ptr => null()
 
@@ -573,12 +574,14 @@ contains
 
     character(str_def) :: prime_mesh_name
     character(str_def) :: orography_mesh_name
+    character(str_def) :: aerosol_mesh_name
 
     logical(l_def) :: use_multires_coupling
     logical(l_def) :: l_multigrid
     logical(l_def) :: inner_halo_tiles
     logical(l_def) :: prepartitioned
     logical(l_def) :: check_partitions
+    logical(l_def) :: coarse_rad_aerosol
 
     integer(i_def) :: geometry
     integer(i_def) :: topology
@@ -614,6 +617,11 @@ contains
     if ( use_multires_coupling ) then
       multires_coupling_mesh_tags = modeldb%config%multires_coupling%multires_coupling_mesh_tags()
       orography_mesh_name         = modeldb%config%multires_coupling%orography_mesh_name()
+      aerosol_mesh_name           = modeldb%config%multires_coupling%aerosol_mesh_name()
+      coarse_rad_aerosol           = modeldb%config%multires_coupling%coarse_rad_aerosol()
+      multires_coupling_nml => modeldb%configuration%get_namelist('multires_coupling')
+    else
+      coarse_rad_aerosol = .false.
     end if
 
     if ( l_multigrid ) then
@@ -988,12 +996,15 @@ contains
   l_couple_sea_ice = .false.
   l_couple_ocean = .false.
 #endif
-
-
     !=======================================================================
     ! 4.0 Initialise output
     !=======================================================================
-    call basic_initialisations( mesh, modeldb%clock, modeldb%config )
+    if (coarse_rad_aerosol) then
+      aerosol_mesh => mesh_collection%get_mesh(trim(aerosol_mesh_name))
+      call basic_initialisations( aerosol_mesh, modeldb%clock, modeldb%config )
+    else
+      call basic_initialisations( mesh, modeldb%clock, modeldb%config )
+    end if
 
     call log_event("Initialising I/O context", LOG_LEVEL_INFO)
 
@@ -1109,7 +1120,7 @@ contains
     !=======================================================================
     nullify(mesh, twod_mesh, shifted_mesh, double_level_mesh, chi, &
             chi_inventory, panel_id_inventory, files_init_ptr,     &
-            orography_mesh, orography_twod_mesh)
+            orography_mesh, orography_twod_mesh, aerosol_mesh)
     deallocate(base_mesh_names)
     deallocate(stencil_depths)
     if (allocated(meshes_to_shift))  deallocate(meshes_to_shift)

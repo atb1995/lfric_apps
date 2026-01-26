@@ -150,6 +150,14 @@
       <field field_ref="convection__massflux_down"/>
       <field field_ref="orographic_drag__taux_orographic_drag"/>
       <field field_ref="orographic_drag__tauy_orographic_drag"/>
+      <field field_ref="aerosol__cor_ins_du"/>
+      <field field_ref="aerosol__n_cor_ins"/>
+      <field field_ref="aerosol__acc_ins_du"/>
+      <field field_ref="aerosol__n_acc_ins"/>
+      <field field_ref="aerosol__cor_ins_du_coarse"/>
+      <field field_ref="aerosol__n_cor_ins_coarse"/>
+      <field field_ref="aerosol__acc_ins_du_coarse"/>
+      <field field_ref="aerosol__n_acc_ins_coarse"/>
     </field_group>
 
     <!-- Half model level diagnostics - not being interpolated to pressure levels -->

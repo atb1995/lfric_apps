@@ -191,11 +191,7 @@ contains
                                   aer_sw_asymmetry_coarse,  &
                                   aer_lw_absorption_coarse, &
                                   aer_lw_scattering_coarse, &
-                                  aer_lw_asymmetry_coarse,  &
-                                  n_acc_ins_coarse,         &
-                                  acc_ins_du_coarse,        &
-                                  n_cor_ins_coarse,         &
-                                  cor_ins_du_coarse
+                                  aer_lw_asymmetry_coarse
 
     type( field_type ) :: aod_ukca_ait_sol
     type( field_type ) :: aaod_ukca_ait_sol
@@ -210,6 +206,13 @@ contains
     type( field_type ) :: aod_ukca_cor_ins
     type( field_type ) :: aaod_ukca_cor_ins
     integer(tik)       :: id_aero, id_diags
+
+
+    type( field_type ) :: n_acc_ins_coarse
+    type( field_type ) :: acc_ins_du_coarse
+    type( field_type ) :: n_cor_ins_coarse
+    type( field_type ) :: cor_ins_du_coarse
+
 
     ! Call on radiation time steps only
     if (mod(timestep-1_i_def, n_radaer_step*n_radstep) == 0) then
@@ -326,10 +329,10 @@ contains
                     setval_c( aer_lw_asymmetry_coarse, 0.0_r_def)   )
 
         call map_scalar_intermesh(lit_fraction_rts_coarse, lit_fraction_rts)
-        call map_mr_intermesh(config, n_acc_ins_coarse, n_acc_ins, rho_aero, rho)
-        call map_mr_intermesh(config, acc_ins_du_coarse, acc_ins_du, rho_aero, rho)
-        call map_mr_intermesh(config, n_cor_ins_coarse, n_cor_ins, rho_aero, rho)
-        call map_mr_intermesh(config, cor_ins_du_coarse, cor_ins_du, rho_aero, rho)
+        call aerosol_fields%get_field('n_acc_ins', n_acc_ins_aero)
+        call aerosol_fields%get_field('acc_ins_du', acc_ins_du_aero)
+        call aerosol_fields%get_field('n_cor_ins', n_cor_ins_aero)
+        call aerosol_fields%get_field('cor_ins_du', cor_ins_du_aero)
 
         ! Point to fields
         aer_mix_ratio_aero =>  aer_mix_ratio_coarse
@@ -340,10 +343,6 @@ contains
         aer_lw_scattering_aero => aer_lw_scattering_coarse
         aer_lw_asymmetry_aero => aer_lw_asymmetry_coarse
         lit_fraction_rts_aero => lit_fraction_rts_coarse
-        n_acc_ins_aero => n_acc_ins_coarse
-        n_cor_ins_aero => n_cor_ins_coarse
-        acc_ins_du_aero => acc_ins_du_coarse
-        cor_ins_du_aero => cor_ins_du_coarse
       else
         ! Unpack RADAER fields for radiation
         call radiation_fields%get_field('lit_fraction_rts', lit_fraction_rts_aero)
