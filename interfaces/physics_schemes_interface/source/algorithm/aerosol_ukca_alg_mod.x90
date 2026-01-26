@@ -9,6 +9,18 @@ module aerosol_ukca_alg_mod
 
   use mesh_mod, only: mesh_type
   use model_clock_mod, only: model_clock_type
+  use function_space_mod,              only: function_space_type
+  use function_space_collection_mod,   only: function_space_collection
+  use intermesh_mappings_alg_mod,      only: map_scalar_intermesh, &
+                                             map_rho_intermesh,     &
+                                             map_integer_intermesh, &
+                                             map_mr_bundle_intermesh, &
+                                             round_to_integer
+  use multires_coupling_config_mod,    only: lowest_order_aero_flag, &
+                                             coarse_rad_aerosol
+  use initialization_config_mod,  only: coarse_aerosol_ancil
+  use multidata_field_dimensions_mod, &
+                                       only: get_ndata_val => get_multidata_field_dimension
 
   implicit none
 
@@ -50,32 +62,35 @@ contains
                                mr,                                             &
                                model_clock )
 
+
     use field_mod,                     only: field_type
     use integer_field_mod,             only: integer_field_type
     use field_collection_mod,          only: field_collection_type
+    use moist_dyn_mod,                 only: num_moist_factors, total_mass
     use fs_continuity_mod,             only: W3, Wtheta
     use function_space_collection_mod, only: function_space_collection
     use function_space_mod,            only: function_space_type
     use multidata_field_dimensions_mod, only :                                 &
         get_ndata_val => get_multidata_field_dimension
     use mesh_collection_mod,           only: mesh_collection
-    use extrusion_mod,                 only: SHIFTED
-    use field_indices_mod,             only: igh_t, igh_p
-    use mr_indices_mod,                only: imr_v, imr_cl, imr_ci, imr_s
-    use constants_mod,                 only: i_def, l_def
+    use extrusion_mod,                 only: SHIFTED, TWOD
+    use field_indices_mod,             only: igh_t, igh_p, igh_d
+    use mr_indices_mod,                only: imr_v, imr_cl, imr_ci, imr_s, nummr
+    use constants_mod,                 only: i_timestep, i_def, r_def, l_def
     use sci_geometric_constants_mod,   only: get_latitude_fv,                  &
                                              get_longitude_fv,                 &
                                              get_height_fv, get_da_msl_proj,   &
                                              get_detj_at_w3_fv
-    use physics_constants_mod,         only: get_rdz_w3
+    use physics_constants_mod,         only: get_rdz_w3, get_dtrdz_wth
     use aerosol_ukca_kernel_mod,       only: aerosol_ukca_kernel_type
 
     use io_config_mod,                 only: subroutine_timers, use_xios_io,   &
                                              write_diag
     use xios,                          only: xios_date, xios_get_current_date, &
-                                             xios_date_get_day_of_year
+                                             xios_date_get_day_of_year,        &
+                                             xios_date_get_second_of_day
     use timer_mod,                     only: timer
-    use log_mod,                       only: log_event, LOG_LEVEL_DEBUG
+    use log_mod,                       only: log_event, LOG_LEVEL_DEBUG, LOG_LEVEL_INFO
 
     use chemistry_config_mod,          only: chem_scheme,                      &
                                              chem_scheme_strattrop,            &
@@ -125,6 +140,10 @@ contains
     use photol_kernel_mod,             only: photol_kernel_type
     use msat_kernel_mod,               only: msat_kernel_type
     use photol_diags_kernel_mod,       only: photol_diags_kernel_type
+    use illuminate_kernel_mod,         only: illuminate_kernel_type
+    use model_clock_mod,               only: model_clock_type
+    use moist_dyn_factors_alg_mod,     only: moist_dyn_factors_alg
+    use physics_mappings_alg_mod,    only: map_physics_scalars
 
     implicit none
 
@@ -143,14 +162,167 @@ contains
     type( field_type ), intent(in) :: state(:)
     type( field_type ), intent(in) :: mr(:)
     class(model_clock_type), intent(in) :: model_clock
+    real(kind=r_def), intent(in) :: dt
+    class( model_clock_type ), intent(in) :: clock
 
     ! -- Local variables --
 
     ! Temporary unpacked fields from collections
+    ! Coarse Dust Fields
+    ! =================== Runtime Fields ============================== !
+    type( field_type ), pointer :: latitude_w3_aero  ! Runtime
+    type( field_type ), pointer :: longitude_w3_aero ! Runtime
+    type( field_type ), pointer :: height_w3_aero    ! Runtime
+    type( field_type ), pointer :: height_wth_aero   ! Runtime
+    type( field_type ), pointer :: rdz_w3_aero       ! Runtime
+    type( field_type ), pointer :: cell_area_aero    ! Runtime
+    type( field_type ), pointer :: detj_shifted_aero ! Runtime
+    type( field_type ), pointer :: dtrdz_coarse_wtheta ! Runtime
+
+    ! =================== Scalar W3/WTHETA Fields ============================== !
+
+    type( field_type ), pointer :: ls_rain_3d_aero ! Scalar WTheta
+    type( field_type ), pointer :: ls_snow_3d_aero ! Scalar WTheta
+    type( field_type ), pointer :: autoconv_aero   ! Scalar WTheta
+    type( field_type ), pointer :: accretion_aero  ! Scalar WTheta
+    type( field_type ), pointer :: rim_cry_aero    ! Scalar WTheta
+    type( field_type ), pointer :: rim_agg_aero    ! Scalar WTheta
+
+    type( field_type ), target :: ls_rain_3d_coarse  ! Scalar WTheta
+    type( field_type ), target :: ls_snow_3d_coarse  ! Scalar WTheta
+    type( field_type ), target :: autoconv_coarse    ! Scalar WTheta
+    type( field_type ), target :: accretion_coarse   ! Scalar WTheta
+    type( field_type ), target :: rim_cry_coarse     ! Scalar WTheta
+    type( field_type ), target :: rim_agg_coarse     ! Scalar WTheta
+
+    type( field_type ), pointer :: theta_aero      ! Scalar WTheta
+    type( field_type ), pointer :: exner_aero      ! Scalar W3
+    type( field_type ), pointer :: exner_in_wth_aero ! Scalar WTheta
+
+    type( field_type ), target :: theta_coarse        ! Scalar WTheta
+    type( field_type ), target :: exner_coarse        ! Scalar W3
+    type( field_type ), target :: exner_in_wth_coarse ! Scalar WTheta
+
+    type( field_type ), pointer :: conv_rain_3d_aero ! Scalar Wtheta
+    type( field_type ), pointer :: conv_snow_3d_aero ! Scalar Wtheta
+    type( field_type ), pointer :: cca_aero          ! Scalar Wtheta
+
+    type( field_type ), target :: conv_rain_3d_coarse ! Scalar Wtheta
+    type( field_type ), target :: conv_snow_3d_coarse ! Scalar Wtheta
+    type( field_type ), target :: cca_coarse          ! Scalar Wtheta
+
+    type( field_type ), pointer :: bulk_fraction_aero   ! Scalar Wtheta
+    type( field_type ), pointer :: liquid_fraction_aero ! Scalar Wtheta
+    type( field_type ), pointer :: area_fraction_aero   ! Scalar Wtheta
+
+    type( field_type ), target :: bulk_fraction_coarse   ! Scalar Wtheta
+    type( field_type ), target :: liquid_fraction_coarse ! Scalar Wtheta
+    type( field_type ), target :: area_fraction_coarse   ! Scalar Wtheta
+
+    type( field_type ), pointer :: z0m_aero ! Scalar W3 2D
+    type( field_type ), pointer :: ustar_aero ! Scalar W3 2D
+
+    type( field_type ), target :: z0m_coarse ! Scalar W3 2D
+    type( field_type ), target :: ustar_coarse ! Scalar W3 2D
+
+    type( field_type ), pointer :: zh_aero ! Scalar W3 2D
+    type( field_type ), pointer :: rhokh_bl_aero ! Scalar W3
+    type( field_type ), pointer :: zhsc_aero ! Scalar W3 2D
+
+    type( field_type ), target :: zh_coarse ! Scalar W3 2D
+    type( field_type ), target :: rhokh_bl_coarse ! Scalar W3
+    type( field_type ), target :: zhsc_coarse ! Scalar W3 2D
+
+    ! =================== Multidata Scalar W3/WTHETA Fields ============================== !
+    type( field_type ), pointer :: dust_flux_aero    ! Scalar W3 2D Multidata
+    
+    type( field_type ), target :: dust_flux_coarse    ! Scalar W3 2D Multidata
+
+    type( field_type ), pointer :: ent_we_lim_aero ! Scalar W3 2D Multidata
+    type( field_type ), pointer :: ent_t_frac_aero ! Scalar W3 2D Multidata
+    type( field_type ), pointer :: ent_zrzi_aero   ! Scalar W3 2D Multidata
+    type( field_type ), pointer :: ent_we_lim_dsc_aero ! Scalar W3 2D Multidata
+    type( field_type ), pointer :: ent_zrzi_dsc_aero ! Scalar W3 2D Multidata
+
+    type( field_type ), target :: ent_we_lim_coarse ! Scalar W3 2D Multidata
+    type( field_type ), target :: ent_t_frac_coarse ! Scalar W3 2D Multidata
+    type( field_type ), target :: ent_zrzi_coarse   ! Scalar W3 2D Multidata
+    type( field_type ), target :: ent_we_lim_dsc_coarse ! Scalar W3 2D Multidata
+    type( field_type ), target :: ent_zrzi_dsc_coarse ! Scalar W3 2D Multidata
+
+
+    ! =================== Integer W3/WTHETA Fields ============================== !
+
+    type( field_type ), pointer :: cv_base_aero      ! Integer W3 2D
+    type( field_type ), pointer :: cv_top_aero       ! Integer W3 2D
+
+    type( field_type ), target :: cv_base_coarse      ! Integer W3 2D
+    type( field_type ), target :: cv_top_coarse       ! Integer W3 2D
+
+    type( integer_field_type ), pointer :: level_ent_aero ! Integer W3 2D
+    type( integer_field_type ), pointer :: level_ent_dsc_aero ! Integer W3 2D
+
+    type( integer_field_type ), target :: level_ent_coarse ! Integer W3 2D
+    type( integer_field_type ), target :: level_ent_dsc_coarse ! Integer W3 2D
+
+
+    ! =================== Moisture Fields ============================== !
+
+    type (field_type), pointer :: mr_aero(:)     ! Scalar Wtheta (Moisture Mapping Required)
+    type (field_type), pointer :: mr_ice_aero        ! Scalar Wtheta (Moisture Mapping Required)
+
+    type (field_type), target :: mr_coarse(nummr)     ! Scalar Wtheta (Moisture Mapping Required)
+    type (field_type), target :: mr_ice_coarse        ! Scalar Wtheta (Moisture Mapping Required)
+
+    type (field_type) :: moist_dyn_coarse(num_moist_factors)
+
+    ! =================== Compute Again Fields ============================== !
+
+    type( field_type ), pointer :: wetrho_in_w3_aero ! Scalar W3, COMPUTE ON OTHER MESH!!!
+    type( field_type ), pointer :: wetrho_in_wth_aero ! Scalar WTheta, COMPUTE ON OTHER MESH!!!
+
+    type( field_type ), target :: wetrho_in_w3_coarse ! Scalar W3, COMPUTE ON OTHER MESH!!!
+    type( field_type ), target :: wetrho_in_wth_coarse ! Scalar WTheta, COMPUTE ON OTHER MESH!!!
+
+    type( field_type ), pointer :: ent_t_frac_dsc_aero ! Scalar W3 2D Multidata COMPUTE ON OTHER MESH!!!
+
+    type( field_type ), target :: ent_t_frac_dsc_coarse ! Scalar W3 2D Multidata COMPUTE ON OTHER MESH!!!
+
+    type( field_type ), pointer :: dtrdz_tq_bl_aero ! Compute on other mesh!!!
+    type( field_type ), target :: dtrdz_tq_bl_coarse ! Compute on other mesh!!!
+
+    ! =================== Tile Fields ============================== !
+    
+    type( field_type ), pointer :: tile_fraction_aero ! Special Tile Mapping?
+    type( field_type ), pointer :: tile_temperature_aero ! Special Tile Mapping?
+
+    type( field_type ), target :: tile_fraction_coarse ! Special Tile Mapping?
+    type( field_type ), target :: tile_temperature_coarse ! Special Tile Mapping?
+
+    ! =================== Unsure Fields ============================== !
+    type( field_type ), pointer :: sin_stellar_declination_rts_aero ! ???
+    type( field_type ), pointer :: stellar_eqn_of_time_rts_aero     ! ???
+    integer(i_def), save :: current_year, day_of_year
+    real(r_def), save :: second_of_day
+    type( field_type ), target :: sin_stellar_declination_rts_coarse ! ???
+    type( field_type ), target :: stellar_eqn_of_time_rts_coarse     ! ???
+    type(field_type) :: cos_zenith_angle_coarse , lit_fraction_coarse , &
+                        cos_zenith_angle_rts_coarse , lit_fraction_rts_coarse , &
+                        stellar_irradiance_rts_coarse , &
+                        orographic_correction_rts_coarse , &
+                        slope_angle_coarse, slope_aspect_coarse , &
+                        horizon_angle_coarse , horizon_aspect_coarse 
+
+    ! Required as is first field in kernel
+    type( field_type ), target  :: o3p_coarse
+    type( field_type ), pointer :: o3p_aero
 
     type( mesh_type ),  pointer :: mesh
+    type( mesh_type ),  pointer :: aero_mesh
+    type( mesh_type ),  pointer :: aero_2d_mesh
     type( mesh_type ),  pointer :: shifted_mesh
     type( function_space_type ), pointer :: vector_space
+    type( mesh_type ),  pointer :: shifted_aero_mesh
 
     type( field_type ), pointer :: latitude_w3
     type( field_type ), pointer :: longitude_w3
@@ -337,6 +509,14 @@ contains
     type( field_type ), pointer :: acc_ins_du
     type( field_type ), pointer :: n_cor_ins
     type( field_type ), pointer :: cor_ins_du
+    type( field_type ), pointer :: n_acc_ins_c
+    type( field_type ), pointer :: acc_ins_du_c
+    type( field_type ), pointer :: n_cor_ins_c
+    type( field_type ), pointer :: cor_ins_du_c
+    type( field_type ), pointer :: n_acc_ins_f
+    type( field_type ), pointer :: acc_ins_du_f
+    type( field_type ), pointer :: n_cor_ins_f
+    type( field_type ), pointer :: cor_ins_du_f
     type( field_type ), pointer :: cloud_drop_no_conc
     type( field_type ), pointer :: drydp_ait_sol
     type( field_type ), pointer :: drydp_acc_sol
@@ -411,6 +591,13 @@ contains
     ! 'required' environment fields in UKCA when chem_scheme=strattrop
     type( field_type ) :: conv_cloud_lwp
     type( field_type ) :: surf_albedo
+    type( field_type ) :: rho_coarse
+    type( field_type ) :: rho_in_wth_coarse
+
+    ! These fields are required by photolysis, which is not currently ported.
+    ! However, as these are 'required' environment fields when
+    ! chem_scheme=strattrop, they are added with dummy values here.
+    ! Photol_rates_single is the diagnostic to hold a sample vertical profile.
 
     ! For relative humidity calculation
     type( field_type ) :: msat
@@ -462,10 +649,17 @@ contains
     integer(i_def), save :: previous_time_daynum = 0
     type( xios_date ) :: datetime
 
-    integer( kind=i_def ) :: ncells
+    integer( kind=i_def ) :: ncells, i_mr
     integer( kind=i_def)  :: jp1, jp2  ! Indices for photolysis fields
 
     type( field_type ) :: mr_ice
+
+    type(function_space_type), pointer :: wth_coarse
+    type(function_space_type), pointer :: w3_coarse
+    type(function_space_type), pointer :: w3_2d_coarse
+    type(function_space_type), pointer :: w3_2d_multidata_coarse
+
+    logical(l_def), save :: first_call = .true.
 
     if ( subroutine_timers ) call timer('aerosol_ukca_alg')
 
@@ -473,8 +667,10 @@ contains
 
     ! Nullify pointers declared above
     nullify(mesh)
+    nullify(aero_mesh)
     nullify(shifted_mesh)
     nullify(vector_space)
+    nullify(shifted_aero_mesh)
     nullify(latitude_w3)
     nullify(longitude_w3)
     nullify(height_w3)
@@ -703,6 +899,56 @@ contains
     nullify(emiss_bc_biomass)
     nullify(emiss_om_biomass)
     nullify(emiss_so2_nat)
+     nullify(latitude_w3_aero)
+    nullify(longitude_w3_aero)
+    nullify(height_w3_aero)
+    nullify(height_wth_aero)
+    nullify(rdz_w3_aero)
+    nullify(cell_area_aero)
+    nullify(detj_shifted_aero)
+    nullify(ls_rain_3d_aero)
+    nullify(ls_snow_3d_aero)
+    nullify(autoconv_aero)
+    nullify(accretion_aero)
+    nullify(rim_cry_aero)
+    nullify(rim_agg_aero)
+    nullify(theta_aero)
+    nullify(exner_aero)
+    nullify(exner_in_wth_aero)
+    nullify(conv_rain_3d_aero)
+    nullify(conv_snow_3d_aero)
+    nullify(cca_aero)
+    nullify(bulk_fraction_aero)
+    nullify(liquid_fraction_aero)
+    nullify(area_fraction_aero)
+    nullify(z0m_aero)
+    nullify(ustar_aero)
+    nullify(zh_aero)
+    nullify(rhokh_bl_aero)
+    nullify(zhsc_aero)
+    nullify(dust_flux_aero)
+    nullify(ent_we_lim_aero)
+    nullify(ent_t_frac_aero)
+    nullify(ent_zrzi_aero)
+    nullify(ent_we_lim_dsc_aero)
+    nullify(ent_zrzi_dsc_aero)
+    nullify(cv_base_aero)
+    nullify(cv_top_aero)
+    nullify(level_ent_aero)
+    nullify(level_ent_dsc_aero)
+    nullify(mr_aero)
+    nullify(mr_ice_aero)
+    nullify(wetrho_in_w3_aero)
+    nullify(wetrho_in_wth_aero)
+    nullify(ent_t_frac_dsc_aero)
+    nullify(dtrdz_tq_bl_aero)
+    nullify(tile_fraction_aero)
+    nullify(tile_temperature_aero)
+    nullify(sin_stellar_declination_rts_aero)
+    nullify(stellar_eqn_of_time_rts_aero)
+    nullify(wetrho_in_wth_aero)
+    nullify(wetrho_in_w3_aero)
+    nullify(o3p_aero)
 
     ! Set time variables for UKCA
     call xios_get_current_date(datetime)
@@ -990,7 +1236,482 @@ contains
     ! This is because bl_tracer_mix calls tr_mix which is dependent on the
     ! variable pdims defined in UM module atm_fields_bounds_mod that is
     ! affected by row_length.
-    ncells = mesh%get_last_edge_cell()
+    if (coarse_rad_aerosol) then
+      ! Get meshes
+      aero_mesh => cor_ins_du%get_mesh()
+      aero_2d_mesh  => mesh_collection%get_mesh(aero_mesh, TWOD)
+      shifted_aero_mesh => mesh_collection%get_mesh(aero_mesh, SHIFTED)
+      ! Coarse Dust Fields
+      ! =================== Runtime Fields ============================== !
+      latitude_w3_aero => get_latitude_fv(W3, aero_mesh%get_id())  ! Runtime
+      longitude_w3_aero => get_longitude_fv(W3, aero_mesh%get_id()) ! Runtime
+      height_w3_aero  =>  get_height_fv( W3, aero_mesh%get_id() )! Runtime
+      height_wth_aero  => get_height_fv( Wtheta, aero_mesh%get_id() ) ! Runtime
+      rdz_w3_aero => get_rdz_w3( aero_mesh%get_id() )      ! Runtime
+      cell_area_aero  => get_da_msl_proj(aero_mesh%get_id())   ! Runtime
+      detj_shifted_aero => get_detj_at_w3_fv(shifted_aero_mesh%get_id())! Runtime
+
+      ! =================== Tile Fields ============================== !
+      w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh,  0, 0, &
+                                                                  W3, get_ndata_val('surface_tiles'))
+      call tile_fraction_coarse%initialise( w3_2d_multidata_coarse, 'tile_fraction_coarse')
+      call tile_temperature_coarse%initialise( w3_2d_multidata_coarse, 'tile_temperature_coarse')
+      
+      call invoke( setval_c(tile_fraction_coarse, 0.0_r_def), &
+                  setval_c(tile_temperature_coarse, 0.0_r_def) )
+      call log_event( 'Mapping tile_fraction', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(tile_fraction_coarse, tile_fraction)
+      call log_event( 'Mapping tile_temperature', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(tile_temperature_coarse, tile_temperature)
+
+      tile_fraction_aero => tile_fraction_coarse
+      tile_temperature_aero => tile_temperature_coarse
+
+      ! =================== Scalar W3/WTHETA Fields ============================== !
+      wth_coarse => function_space_collection%get_fs( aero_mesh, 0, 0, WTHETA )
+      w3_coarse => function_space_collection%get_fs( aero_mesh,  0, 0, W3 )
+      w3_2d_coarse => function_space_collection%get_fs( aero_2d_mesh,  0, 0, W3 )
+
+      ! Initialise Fields
+      call o3p_coarse%initialise( wth_coarse, 'o3p_coarse')
+      call ls_rain_3d_coarse%initialise( wth_coarse, 'ls_rain_3d_coarse')
+      call ls_snow_3d_coarse%initialise( wth_coarse, 'ls_snow_3d_coarse')
+      call autoconv_coarse%initialise( wth_coarse, 'autoconv_coarse')
+      call accretion_coarse%initialise( wth_coarse, 'accretion_coarse')
+      call rim_cry_coarse%initialise( wth_coarse, 'rim_cry_coarse')
+      call rim_agg_coarse%initialise( wth_coarse, 'rim_agg_coarse')
+      call theta_coarse%initialise( wth_coarse, 'theta_coarse')
+      call exner_in_wth_coarse%initialise( wth_coarse, 'exner_in_wth_coarse')
+      call conv_rain_3d_coarse%initialise( wth_coarse, 'conv_rain_3d_coarse')
+      call conv_snow_3d_coarse%initialise( wth_coarse, 'conv_snow_3d_coarse')
+      call cca_coarse%initialise( wth_coarse, 'cca_coarse')
+      call bulk_fraction_coarse%initialise( wth_coarse, 'bulk_fraction_coarse')
+      call liquid_fraction_coarse%initialise( wth_coarse, 'liquid_fraction_coarse')
+      call area_fraction_coarse%initialise( wth_coarse, 'area_fraction_coarse')
+
+      call exner_coarse%initialise( w3_coarse, 'exner_coarse')
+      call z0m_coarse%initialise( w3_2d_coarse, 'z0m_coarse')
+      call ustar_coarse%initialise( w3_2d_coarse, 'ustar_coarse')
+      call zh_coarse%initialise( w3_2d_coarse, 'zh_coarse')
+      call rhokh_bl_coarse%initialise( w3_coarse, 'rhokh_bl_coarse')
+      call zhsc_coarse%initialise( w3_2d_coarse, 'zhsc_coarse')
+
+      call invoke( setval_c(o3p_coarse, 0.0_r_def), &
+                   setval_c(ls_rain_3d_coarse, 0.0_r_def), &
+                   setval_c(ls_snow_3d_coarse, 0.0_r_def), & 
+                   setval_c(autoconv_coarse, 0.0_r_def), &
+                    setval_c(accretion_coarse, 0.0_r_def), &
+                    setval_c(rim_cry_coarse, 0.0_r_def), &
+                    setval_c(rim_agg_coarse, 0.0_r_def), &
+                    setval_c(theta_coarse, 0.0_r_def), &
+                    setval_c(exner_in_wth_coarse, 0.0_r_def), &
+                    setval_c(conv_rain_3d_coarse, 0.0_r_def), &
+                    setval_c(conv_snow_3d_coarse, 0.0_r_def), &
+                    setval_c(cca_coarse, 0.0_r_def), &
+                    setval_c(bulk_fraction_coarse, 0.0_r_def), &
+                    setval_c(liquid_fraction_coarse, 0.0_r_def), &
+                    setval_c(area_fraction_coarse, 0.0_r_def), &
+                    setval_c(exner_coarse, 0.0_r_def), &
+                    setval_c(z0m_coarse, 0.0_r_def), &
+                    setval_c(ustar_coarse, 0.0_r_def), &
+                    setval_c(zh_coarse, 0.0_r_def), &
+                    setval_c(rhokh_bl_coarse, 0.0_r_def), &
+                    setval_c(zhsc_coarse, 0.0_r_def) )
+
+      ! Map Fields
+      call log_event( 'Mapping o3p', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(o3p_coarse, o3p)
+      
+      call log_event( 'Mapping ls_rain_3d', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ls_rain_3d_coarse, ls_rain_3d)
+      
+      call log_event( 'Mapping ls_snow_3d', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ls_snow_3d_coarse, ls_snow_3d)
+      
+      call log_event( 'Mapping autoconv', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(autoconv_coarse, autoconv)
+      
+      call log_event( 'Mapping accretion', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(accretion_coarse, accretion)
+      
+      call log_event( 'Mapping rim_cry', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(rim_cry_coarse, rim_cry)
+      
+      call log_event( 'Mapping rim_agg', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(rim_agg_coarse, rim_agg)
+      
+      call log_event( 'Mapping theta', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(theta_coarse, state(igh_t))
+      
+       call log_event( 'Mapping exner_wth', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(exner_in_wth_coarse, exner_in_wth)
+      
+      call log_event( 'Mapping conv_rain_3d', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(conv_rain_3d_coarse, conv_rain_3d)
+      
+      call log_event( 'Mapping conv_snow_3d', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(conv_snow_3d_coarse, conv_snow_3d)
+      
+      call log_event( 'Mapping cca', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(cca_coarse, cca)
+      
+      call log_event( 'Mapping bulk_fraction', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(bulk_fraction_coarse, bulk_fraction)
+      
+      call log_event( 'Mapping liquid_fraction', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(liquid_fraction_coarse, liquid_fraction)
+      
+      call log_event( 'Mapping area_fraction', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(area_fraction_coarse, area_fraction)
+      
+      call log_event( 'Mapping exner', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(exner_coarse, state(igh_p))
+      
+      call log_event( 'Mapping z0m', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(z0m_coarse, z0m)
+      
+      call log_event( 'Mapping ustar', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ustar_coarse, ustar)
+      
+      call log_event( 'Mapping zh', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(zh_coarse, zh)
+      
+      call log_event( 'Mapping rhokh_bl', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(rhokh_bl_coarse, rhokh_bl)
+      
+      call log_event( 'Mapping zhsc', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(zhsc_coarse, zhsc)
+
+
+      ! Pointers to Fields
+      o3p_aero => o3p_coarse
+      ls_rain_3d_aero => ls_rain_3d_coarse
+      ls_snow_3d_aero => ls_snow_3d_coarse
+      autoconv_aero => autoconv_coarse
+      accretion_aero => accretion_coarse
+      rim_cry_aero => rim_cry_coarse
+      rim_agg_aero => rim_agg_coarse
+      theta_aero => theta_coarse
+      exner_aero => exner_coarse
+      exner_in_wth_aero => exner_in_wth_coarse
+      conv_rain_3d_aero => conv_rain_3d_coarse
+      conv_snow_3d_aero => conv_snow_3d_coarse
+      cca_aero => cca_coarse
+      bulk_fraction_aero => bulk_fraction_coarse
+      liquid_fraction_aero => liquid_fraction_coarse
+      area_fraction_aero => area_fraction_coarse
+      z0m_aero => z0m_coarse
+      ustar_aero => ustar_coarse
+      zh_aero => zh_coarse
+      rhokh_bl_aero => rhokh_bl_coarse
+      zhsc_aero => zhsc_coarse
+
+    ! =================== Multidata Scalar W3 Fields ============================== !
+      w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh, &
+                                                                   0, 0, W3, &
+                                                                  get_ndata_val('dust_divisions'))
+      call dust_flux_coarse%initialise( w3_2d_multidata_coarse, 'dust_flux_coarse')
+
+      w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh, &
+                                                                   0, 0, W3, &
+                                                                  get_ndata_val('entrainment_levels'))
+      call ent_we_lim_coarse%initialise( w3_2d_multidata_coarse, 'ent_we_lim_coarse')
+      call ent_t_frac_coarse%initialise( w3_2d_multidata_coarse, 'ent_t_frac_coarse')
+      call ent_zrzi_coarse%initialise( w3_2d_multidata_coarse, 'ent_zrzi_coarse')
+      call ent_we_lim_dsc_coarse%initialise( w3_2d_multidata_coarse, 'ent_we_lim')
+      call ent_zrzi_dsc_coarse%initialise( w3_2d_multidata_coarse, 'ent_zrzi_dsc')
+
+      call invoke( setval_c(dust_flux_coarse, 0.0_r_def), &
+                   setval_c(ent_we_lim_coarse, 0.0_r_def), &
+                    setval_c(ent_t_frac_coarse, 0.0_r_def), &
+                    setval_c(ent_zrzi_coarse, 0.0_r_def), &
+                    setval_c(ent_we_lim_dsc_coarse, 0.0_r_def), &
+                    setval_c(ent_zrzi_dsc_coarse, 0.0_r_def) )
+      
+      call log_event( 'Mapping dust_flux', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(dust_flux_coarse, dust_flux)
+      
+      call log_event( 'Mapping ent_we_lim', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ent_we_lim_coarse, ent_we_lim)
+      
+      call log_event( 'Mapping ent_t_frac', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ent_t_frac_coarse, ent_t_frac)
+      
+      call log_event( 'Mapping ent_zrzi', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ent_zrzi_coarse, ent_zrzi)
+      
+      call log_event( 'Mapping ent_we_lim_dsc', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ent_we_lim_dsc_coarse, ent_we_lim_dsc)
+      
+      call log_event( 'Mapping ent_zrzi_dsc', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ent_zrzi_dsc_coarse, ent_zrzi_dsc)
+
+      dust_flux_aero => dust_flux_coarse
+      ent_we_lim_aero => ent_we_lim_coarse
+      ent_t_frac_aero => ent_t_frac_coarse
+      ent_zrzi_aero => ent_zrzi_coarse
+      ent_we_lim_dsc_aero => ent_we_lim_dsc_coarse
+      ent_zrzi_dsc_aero => ent_zrzi_dsc_coarse
+
+      ! =================== Integer W3/WTHETA Fields ============================== !
+
+      call cv_base_coarse%initialise( w3_2d_coarse, 'cv_base_coarse')
+      call cv_top_coarse%initialise( w3_2d_coarse, 'cv_top_coarse')
+      call level_ent_coarse%initialise( w3_2d_coarse, 'level_ent_coarse')
+      call level_ent_dsc_coarse%initialise( w3_2d_coarse, 'level_ent_dsc_coarse')
+
+      call invoke( setval_c(cv_base_coarse, 0.0_r_def), &
+                  setval_c(cv_top_coarse, 0.0_r_def) )
+      call log_event( 'Mapping cv_base', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(cv_base_coarse, cv_base, lowest_order_flag=.true.)
+      
+      call log_event( 'Mapping cv_top', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(cv_top_coarse, cv_top, lowest_order_flag=.true.)
+
+      ! Round to nearest integer
+      call round_to_integer(cv_top_coarse)
+      call round_to_integer(cv_base_coarse)
+      call log_field_minmax(LOG_LEVEL_INFO, 'cv_base_coarse', cv_base_coarse)
+      call log_field_minmax(LOG_LEVEL_INFO, 'cv_top_coarse', cv_top_coarse)
+      
+      call log_event( 'Mapping ent', LOG_LEVEL_INFO )
+      call map_integer_intermesh(level_ent_coarse, level_ent, aero_mesh, mesh)
+      
+      call log_event( 'Mapping ent_dsc', LOG_LEVEL_INFO )
+      call map_integer_intermesh(level_ent_dsc_coarse, level_ent_dsc, aero_mesh, mesh)
+
+      cv_base_aero => cv_base_coarse
+      cv_top_aero => cv_top_coarse
+      level_ent_aero => level_ent_coarse
+      level_ent_dsc_aero => level_ent_dsc_coarse
+
+
+      ! =================== Moisture Fields ============================== !
+      call rho_coarse%initialise(vector_space = w3_coarse)
+      do i_mr = 1, nummr
+        call mr_coarse(i_mr)%initialise(vector_space = wth_coarse)
+      end do
+      call log_event( 'Mapping rho', LOG_LEVEL_INFO )
+      call map_rho_intermesh(rho_coarse, state(igh_d))   
+      
+      call log_event( 'Mapping mr', LOG_LEVEL_INFO )
+      call map_mr_bundle_intermesh(mr_coarse, mr, rho_coarse, state(igh_d))
+      ! Calculate total ice field
+      call mr_coarse(imr_ci)%copy_field_properties(mr_ice_coarse)
+      call invoke(setval_X(mr_ice_coarse, mr_coarse(imr_ci)))
+      if (microphysics_casim) then
+        call invoke(inc_X_plus_Y(mr_ice_coarse, mr_coarse(imr_s)))
+      end if
+
+      
+
+      mr_aero => mr_coarse
+      mr_ice_aero => mr_ice_coarse
+
+      ! =================== Compute Again Fields ============================== !
+
+      ! Initialise Fields
+      call wetrho_in_w3_coarse%initialise( w3_coarse, 'wetrho_in_w3_coarse')
+      call wetrho_in_wth_coarse%initialise( wth_coarse, 'wetrho_in_wth_coarse')
+      call ent_t_frac_dsc_coarse%initialise( w3_2d_multidata_coarse, 'ent_t_frac_dsc_coarse')
+      call dtrdz_tq_bl_coarse%initialise( wth_coarse, 'dtrdz_tq_bl_coarse')
+      call rho_in_wth_coarse%initialise(wth_coarse, 'rho_in_wth_coarse')
+      !call map_scalar_intermesh(dtrdz_tq_bl_coarse, dtrdz_tq_bl)
+
+      dtrdz_coarse_wtheta => get_dtrdz_wth(aero_mesh%get_id(), clock)
+      call map_physics_scalars(rho_in_wth_coarse, rho_coarse)
+      call invoke(setval_X(dtrdz_tq_bl_coarse, dtrdz_coarse_wtheta))
+      call invoke( inc_X_divideby_Y(dtrdz_tq_bl_coarse,  rho_in_wth_coarse) )
+
+      ! Fields required for recomputation
+      !call rho_in_wth_coarse%initialise(vector_space = wth_coarse
+      call cos_zenith_angle_coarse%initialise(vector_space = w3_2d_coarse)
+      call lit_fraction_coarse%initialise(vector_space = w3_2d_coarse)
+      call cos_zenith_angle_rts_coarse%initialise(vector_space = w3_2d_coarse)
+      call lit_fraction_rts_coarse%initialise(vector_space = w3_2d_coarse)
+      call stellar_irradiance_rts_coarse%initialise(vector_space = w3_2d_coarse)
+      call sin_stellar_declination_rts_coarse%initialise(vector_space = w3_2d_coarse)
+      call stellar_eqn_of_time_rts_coarse%initialise(vector_space = w3_2d_coarse)
+      call orographic_correction_rts_coarse%initialise(vector_space = w3_2d_coarse)
+    
+      call slope_angle_coarse%initialise(vector_space = w3_2d_coarse)
+      call slope_aspect_coarse%initialise(vector_space = w3_2d_coarse)
+
+      ! Multidata?
+      w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh,  0, 0, &
+                                                                  W3, get_ndata_val('horizon_angles'))
+      call horizon_angle_coarse%initialise(vector_space = w3_2d_multidata_coarse)
+      w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh,  0, 0, &
+                                                                  W3, get_ndata_val('horizon_aspects'))
+      call horizon_aspect_coarse%initialise(vector_space = w3_2d_multidata_coarse)
+
+      do i_mr = 1, num_moist_factors
+        call moist_dyn_coarse(i_mr)%initialise(vector_space = wth_coarse)
+      end do
+
+      ! Set Fields
+      call invoke( setval_c(wetrho_in_w3_coarse, 0.0_r_def), &
+                  setval_c(wetrho_in_wth_coarse, 0.0_r_def), &
+                  setval_c(ent_t_frac_dsc_coarse, 0.0_r_def) )
+      ! Compute wetrho fields
+      !call map_physics_scalars(rho_in_wth_coarse,   rho_coarse)
+      call moist_dyn_factors_alg(moist_dyn_coarse, mr_coarse)
+      call invoke(X_times_Y(wetrho_in_wth_coarse, rho_in_wth_coarse, moist_dyn_coarse(total_mass)))
+      call map_physics_scalars(wetrho_in_w3_coarse, wetrho_in_wth_coarse)
+
+      ! Compute turbulence fields
+      call log_event( 'Mapping ent_t_frac_dsc', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(ent_t_frac_dsc_coarse, ent_t_frac_dsc)
+
+      call log_field_minmax( LOG_LEVEL_INFO, ' wetrho_in_w3_coarse ', wetrho_in_w3_coarse )
+      call log_field_minmax( LOG_LEVEL_INFO, ' wetrho_in_wth_coarse ', wetrho_in_wth_coarse )
+      call log_field_minmax( LOG_LEVEL_INFO, ' dtrdz_tq_bl_coarse', dtrdz_tq_bl_coarse )
+
+      
+      ! Compute radiation fields
+      ! In: slope_angle, slope_aspect, horizon_angle, horizon_aspect, latitude, longitude
+      ! Out: cos_zenith_angle, lit_fraction, orographic_correction_rts
+      ! In/Out: cos_zenith_angle_rts, lit_fraction_rts, stellar_irradiance_rts, 
+      ! sin_stellar_declination_rts, stellar_eqn_of_time_rts 
+      call invoke ( setval_c(slope_angle_coarse, 0.0_r_def), &
+                    setval_c(slope_aspect_coarse, 0.0_r_def), &
+                    setval_c(horizon_angle_coarse, 0.0_r_def), &
+                    setval_c(horizon_aspect_coarse, 0.0_r_def), &
+                    setval_c(cos_zenith_angle_coarse, 0.0_r_def), &
+                    setval_c(lit_fraction_coarse, 0.0_r_def), &
+                    setval_c(cos_zenith_angle_rts_coarse, 0.0_r_def), &
+                    setval_c(lit_fraction_rts_coarse, 0.0_r_def), &
+                    setval_c(stellar_irradiance_rts_coarse, 0.0_r_def), &
+                    setval_c(sin_stellar_declination_rts_coarse, 0.0_r_def), &
+                    setval_c(stellar_eqn_of_time_rts_coarse, 0.0_r_def), &
+                    setval_c(orographic_correction_rts_coarse, 0.0_r_def) )
+      
+      if (.not. first_call) then
+
+        ! call invoke( illuminate_kernel_type( &
+        !               cos_zenith_angle_coarse, lit_fraction_coarse, &
+        !               cos_zenith_angle_rts_coarse, lit_fraction_rts_coarse, &
+        !               stellar_irradiance_rts_coarse, &
+        !               sin_stellar_declination_rts_coarse, &
+        !               stellar_eqn_of_time_rts_coarse, &
+        !               orographic_correction_rts_coarse, &
+        !               slope_angle_coarse, slope_aspect_coarse, &
+        !               horizon_angle_coarse, horizon_aspect_coarse, &
+        !               latitude_w3_aero, longitude_w3_aero, timestep_number, dt, &
+        !               current_year, day_of_year, second_of_day) )
+        call map_scalar_intermesh(sin_stellar_declination_rts_coarse, sin_stellar_declination_rts)
+        call map_scalar_intermesh(stellar_eqn_of_time_rts_coarse, stellar_eqn_of_time_rts)
+      else
+        call map_scalar_intermesh(sin_stellar_declination_rts_coarse, sin_stellar_declination_rts)
+        call map_scalar_intermesh(stellar_eqn_of_time_rts_coarse, stellar_eqn_of_time_rts)
+      end if
+      ! Get date and time
+      call xios_get_current_date(datetime)
+      current_year  = int(datetime%year, i_def)
+      day_of_year   = int(xios_date_get_day_of_year(datetime), i_def) + 1_i_def
+      second_of_day = real(xios_date_get_second_of_day(datetime), r_def)
+      first_call = .false.
+      ! Pointers
+      wetrho_in_w3_aero => wetrho_in_w3_coarse
+      wetrho_in_wth_aero => wetrho_in_wth_coarse
+      ent_t_frac_dsc_aero => ent_t_frac_dsc_coarse
+      dtrdz_tq_bl_aero => dtrdz_tq_bl_coarse
+      sin_stellar_declination_rts_aero => sin_stellar_declination_rts_coarse
+      stellar_eqn_of_time_rts_aero => stellar_eqn_of_time_rts_coarse
+
+      call log_field_minmax( LOG_LEVEL_INFO, ' stellar_eqn_of_time_rts_coarse ', stellar_eqn_of_time_rts_coarse )
+      call log_field_minmax( LOG_LEVEL_INFO, ' sin_stellar_declination_rts_coarse ', sin_stellar_declination_rts_coarse )
+
+      ncells = aero_mesh%get_last_edge_cell()
+    
+    else
+      latitude_w3_aero => get_latitude_fv(W3, mesh%get_id())  ! Runtime
+      longitude_w3_aero => get_longitude_fv(W3, mesh%get_id()) ! Runtime
+      height_w3_aero  =>  get_height_fv( W3, mesh%get_id() )! Runtime
+      height_wth_aero  => get_height_fv( Wtheta, mesh%get_id() ) ! Runtime
+      rdz_w3_aero => get_rdz_w3( mesh%get_id() )      ! Runtime
+      cell_area_aero  => get_da_msl_proj(mesh%get_id())   ! Runtime
+      detj_shifted_aero => get_detj_at_w3_fv(shifted_mesh%get_id())! Runtime
+
+      call chemistry_fields%get_field('o3p', o3p_aero)
+      call microphysics_fields%get_field('ls_rain_3d', ls_rain_3d_aero)
+      call microphysics_fields%get_field('ls_snow_3d', ls_snow_3d_aero)
+      call microphysics_fields%get_field('autoconv', autoconv_aero)
+      call microphysics_fields%get_field('accretion', accretion_aero)
+      call microphysics_fields%get_field('rim_cry', rim_cry_aero)
+      call microphysics_fields%get_field('rim_agg', rim_agg_aero)
+
+      wth_coarse => function_space_collection%get_fs( mesh,  0, 0, WTHETA )
+      w3_coarse => function_space_collection%get_fs( mesh,  0, 0, W3 )
+
+      do i_mr = 1, nummr
+        call mr_coarse(i_mr)%initialise(vector_space = wth_coarse)
+        call invoke( setval_X(mr_coarse(i_mr), mr(i_mr)) )
+      end do
+      ! Calculate total ice field
+      call mr_coarse(imr_ci)%copy_field_properties(mr_ice_coarse)
+      call invoke(setval_X(mr_ice_coarse, mr_coarse(imr_ci)))
+  
+      mr_aero => mr_coarse
+      mr_ice_aero => mr_ice_coarse
+
+      ! Initialise Fields
+      call theta_coarse%initialise( wth_coarse, 'theta_coarse')
+      call exner_coarse%initialise( w3_coarse, 'exner_coarse')
+      call invoke ( setval_X(theta_coarse, state(igh_t)), &
+                   setval_X(exner_coarse, state(igh_p)) )
+      theta_aero => theta_coarse
+      exner_aero => exner_coarse
+      call derived_fields%get_field('exner_in_wth', exner_in_wth_aero)
+     
+      call convection_fields%get_field('conv_rain_3d', conv_rain_3d_aero)
+      call convection_fields%get_field('conv_snow_3d', conv_snow_3d_aero)
+      call convection_fields%get_field('cca', cca_aero)
+
+      call cloud_fields%get_field('bulk_fraction', bulk_fraction_aero)
+      call cloud_fields%get_field('liquid_fraction', liquid_fraction_aero)
+      call cloud_fields%get_field('area_fraction', area_fraction_aero)
+      call surface_fields%get_field('z0m', z0m_aero)
+      call surface_fields%get_field('ustar', ustar_aero)
+      
+      call turbulence_fields%get_field('zh', zh_aero)
+      call turbulence_fields%get_field('rhokh_bl', rhokh_bl_aero)
+      call turbulence_fields%get_field('zhsc', zhsc_aero)
+
+      call aerosol_fields%get_field('dust_flux', dust_flux_aero)
+
+      call turbulence_fields%get_field('ent_we_lim', ent_we_lim_aero)
+      call turbulence_fields%get_field('ent_t_frac', ent_t_frac_aero)
+      call turbulence_fields%get_field('ent_zrzi', ent_zrzi_aero)
+      call turbulence_fields%get_field('ent_we_lim_dsc', ent_we_lim_dsc_aero)
+      call turbulence_fields%get_field('ent_zrzi_dsc', ent_zrzi_dsc_aero)
+
+      call convection_fields%get_field('cv_base', cv_base_aero)
+      call convection_fields%get_field('cv_top', cv_top_aero)
+      call turbulence_fields%get_field('level_ent', level_ent_aero)
+      call turbulence_fields%get_field('level_ent_dsc', level_ent_dsc_aero)
+
+      call derived_fields%get_field('wetrho_in_w3', wetrho_in_w3_aero)
+      call derived_fields%get_field('wetrho_in_wth', wetrho_in_wth_aero)
+
+      call turbulence_fields%get_field('ent_t_frac_dsc', ent_t_frac_dsc_aero)
+      call turbulence_fields%get_field('dtrdz_tq_bl', dtrdz_tq_bl_aero)
+      call radiation_fields%get_field('sin_stellar_declination_rts', sin_stellar_declination_rts_aero)
+      call radiation_fields%get_field('stellar_eqn_of_time_rts', stellar_eqn_of_time_rts_aero)
+
+      call surface_fields%get_field('tile_fraction', tile_fraction_aero)
+      call surface_fields%get_field('tile_temperature', tile_temperature_aero)
+
+
+      ncells = mesh%get_last_edge_cell()
+
+      call log_field_minmax( LOG_LEVEL_INFO, ' stellar_eqn_of_time_rts ', stellar_eqn_of_time_rts_aero )
+      call log_field_minmax( LOG_LEVEL_INFO, ' sin_stellar_declination_rts ', sin_stellar_declination_rts_aero )
+      call log_field_minmax( LOG_LEVEL_INFO, 'wetrho_in_w3', wetrho_in_w3_aero )
+      call log_field_minmax( LOG_LEVEL_INFO, 'wetrho_in_wth', wetrho_in_wth_aero )
+      call log_field_minmax( LOG_LEVEL_INFO, 'dtrdz_tq_bl', dtrdz_tq_bl_aero )
+    end if
+
     call um_sizes_init( ncells )
 
     ! Calculate total ice field
@@ -1158,8 +1879,7 @@ contains
 
     ! Do UKCA time step
 
-    if ( subroutine_timers ) call timer('ukca_chemistry_alg')
-    call invoke(aerosol_ukca_kernel_type( o3p,                                 &
+    call invoke(aerosol_ukca_kernel_type( o3p_aero,                                 &
                                           o1d,                                 &
                                           o3,                                  &
                                           n,                                   &
@@ -1347,69 +2067,69 @@ contains
                                           atmospheric_n2,                      &
                                           atmospheric_n2o,                     &
                                           atmospheric_o2,                      &
-                                          state(igh_t),                        &
-                                          state(igh_p),                        &
-                                          exner_in_wth,                        &
+                                         theta_aero,                        &
+                                          exner_aero,                        &
+                                          exner_in_wth_aero,                        &
                                           w_in_wth,                            &
-                                          mr(imr_v),                           &
-                                          mr(imr_cl),                          &
-                                          mr_ice,                              &
-                                          height_w3,                           &
-                                          wetrho_in_wth,                       &
-                                          detj_shifted,                        &
-                                          height_wth,                          &
-                                          ls_rain_3d,                          &
-                                          ls_snow_3d,                          &
-                                          autoconv,                            &
-                                          accretion,                           &
-                                          rim_cry,                             &
-                                          rim_agg,                             &
+                                          mr_aero(imr_v),                           &
+                                          mr_aero(imr_cl),                          &
+                                          mr_ice_aero,                              &
+                                          height_w3_aero,                           &
+                                          wetrho_in_wth_aero,                       &
+                                          detj_shifted_aero,                        &
+                                          height_wth_aero,                          &
+                                          ls_rain_3d_aero,                          &
+                                          ls_snow_3d_aero,                          &
+                                          autoconv_aero,                            &
+                                          accretion_aero,                           &
+                                          rim_cry_aero,                             &
+                                          rim_agg_aero,                             &
                                           tke_bl,                              &
-                                          conv_rain_3d,                        &
-                                          conv_snow_3d,                        &
-                                          cca,                                 &
-                                          area_fraction,                       &
-                                          bulk_fraction,                       &
-                                          liquid_fraction,                     &
-                                          tile_fraction,                       &
-                                          tile_temperature,                    &
+                                           conv_rain_3d_aero,                        &
+                                          conv_snow_3d_aero,                        &
+                                          cca_aero,                                 &
+                                          area_fraction_aero,                       &
+                                          bulk_fraction_aero,                       &
+                                          liquid_fraction_aero,                     &
+                                          tile_fraction_aero,                       &
+                                          tile_temperature_aero,                    &
                                           tile_heat_flux,                      &
                                           gc_tile,                             &
                                           leaf_area_index,                     &
                                           canopy_height,                       &
                                           soil_moisture,                       &
-                                          latitude_w3,                         &
-                                          longitude_w3,                        &
-                                          cell_area,                           &
-                                          sin_stellar_declination_rts,         &
-                                          stellar_eqn_of_time_rts,             &
+                                         latitude_w3_aero,                         &
+                                          longitude_w3_aero,                        &
+                                          cell_area_aero,                           &
+                                          sin_stellar_declination_rts_aero,         &
+                                          stellar_eqn_of_time_rts_aero,             &
                                           soil_roughness,                      &
-                                          z0m,                                 &
+                                          z0m_aero,                                 &
                                           urbztm,                              &
-                                          ustar,                               &
+                                          ustar_aero,                               &
                                           wspd10m,                             &
                                           chloro_sea,                          &
-                                          zh,                                  &
-                                          wetrho_in_w3,                        &
-                                          rhokh_bl,                            &
-                                          rdz_w3,                              &
-                                          dtrdz_tq_bl,                         &
-                                          zhsc,                                &
+                                          zh_aero,                                  &
+                                          wetrho_in_w3_aero,                        &
+                                          rhokh_bl_aero,                            &
+                                          rdz_w3_aero,                              &
+                                          dtrdz_tq_bl_aero,                         &
+                                          zhsc_aero,                                &
                                           conv_cloud_lwp,                      &
                                           surf_albedo,                         &
-                                          cv_base,                             &
-                                          cv_top,                              &
-                                          level_ent,                           &
-                                          level_ent_dsc,                       &
-                                          ent_we_lim,                          &
-                                          ent_t_frac,                          &
-                                          ent_zrzi,                            &
-                                          ent_we_lim_dsc,                      &
-                                          ent_t_frac_dsc,                      &
-                                          ent_zrzi_dsc,                        &
+                                          cv_base_aero,                             &
+                                          cv_top_aero,                              &
+                                          level_ent_aero,                           &
+                                          level_ent_dsc_aero,                       &
+                                          ent_we_lim_aero,                          &
+                                          ent_t_frac_aero,                          &
+                                          ent_zrzi_aero,                            &
+                                          ent_we_lim_dsc_aero,                      &
+                                          ent_t_frac_dsc_aero,                      &
+                                          ent_zrzi_dsc_aero,                        &
                                           h2o2_limit,                          &
                                           dms_conc_ocean,                      &
-                                          dust_flux,                           &
+                                          dust_flux_aero,                           &
                                           surf_wetness,                        &
                                           emiss_c2h6,                          &
                                           emiss_c3h8,                          &
@@ -1652,6 +2372,37 @@ contains
       call pvol_du_acc_ins%write_field('aerosol__pvol_du_acc_ins')
       call pvol_du_cor_ins%write_field('aerosol__pvol_du_cor_ins')
 
+      ! if ( coarse_rad_aerosol ) then
+      !   call aerosol_fields%get_field('acc_ins_du_fine', acc_ins_du_f)
+      !   call aerosol_fields%get_field('n_acc_ins_fine', n_acc_ins_f)
+      !   call aerosol_fields%get_field('cor_ins_du_fine', cor_ins_du_f)
+      !   call aerosol_fields%get_field('n_cor_ins_fine', n_cor_ins_f)
+
+      !   call map_scalar_intermesh(acc_ins_du_f, acc_ins_du)
+      !   call map_scalar_intermesh(n_acc_ins_f, n_acc_ins)
+      !   call map_scalar_intermesh(cor_ins_du_f, cor_ins_du)
+      !   call map_scalar_intermesh(n_cor_ins_f, n_cor_ins)
+
+      !   call n_acc_ins_f%write_field('aerosol__n_acc_ins_fine')
+      !   call acc_ins_du_f%write_field('aerosol__acc_ins_du_fine')
+      !   call n_cor_ins_f%write_field('aerosol__n_cor_ins_fine')
+      !   call cor_ins_du_f%write_field('aerosol__cor_ins_du_fine')
+      if ( coarse_aerosol_ancil .and. .not. coarse_rad_aerosol ) then
+        call aerosol_fields%get_field('acc_ins_du_coarse', acc_ins_du_c)
+        call aerosol_fields%get_field('n_acc_ins_coarse', n_acc_ins_c)
+        call aerosol_fields%get_field('cor_ins_du_coarse', cor_ins_du_c)
+        call aerosol_fields%get_field('n_cor_ins_coarse', n_cor_ins_c)
+
+        call map_scalar_intermesh(acc_ins_du_c, acc_ins_du)
+        call map_scalar_intermesh(n_acc_ins_c, n_acc_ins)
+        call map_scalar_intermesh(cor_ins_du_c, cor_ins_du)
+        call map_scalar_intermesh(n_cor_ins_c, n_cor_ins)
+        
+        call n_acc_ins_c%write_field('aerosol__n_acc_ins_coarse')
+        call acc_ins_du_c%write_field('aerosol__acc_ins_du_coarse')
+        call n_cor_ins_c%write_field('aerosol__n_cor_ins_coarse')
+        call cor_ins_du_c%write_field('aerosol__cor_ins_du_coarse')
+      end if
     end if      ! write diag
 
     nullify( mesh )

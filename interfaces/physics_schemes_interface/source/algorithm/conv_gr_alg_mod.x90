@@ -13,11 +13,17 @@ module conv_gr_alg_mod
   use field_collection_mod, only: field_collection_type
   use mr_indices_mod,       only: nummr, imr_v, imr_cl, imr_ci, imr_s
   use microphysics_config_mod, only: microphysics_casim
+  use intermesh_mappings_alg_mod,        only: map_scalar_intermesh, &
+                                               map_mr_intermesh,     &
+                                               map_rho_intermesh
+  use multires_coupling_config_mod,    only: lowest_order_aero_flag, &
+                                             coarse_rad_aerosol
 
   use timestepping_config_mod,     only: outer_iterations
   use sci_geometric_constants_mod, only: get_height_fv, get_delta_at_wtheta
   use fs_continuity_mod,           only: W3, Wtheta
-
+  use function_space_mod,              only: function_space_type
+  use function_space_collection_mod,   only: function_space_collection
   use io_config_mod,        only: subroutine_timers
   use timer_mod,            only: timer
   ! xios output
@@ -248,6 +254,12 @@ contains
     type( field_type ), pointer :: height_wth => null()
     type( field_type ), pointer :: delta => null()
 
+    ! Fine dust fields type(function_space_type), pointer :: wth_fine => null()
+ 	  type( field_type ), pointer :: n_acc_ins_aero => null()
+ 	  type( field_type ), pointer :: acc_ins_du_aero => null()
+    type( field_type ), pointer :: n_cor_ins_aero => null()
+ 	  type( field_type ), pointer :: cor_ins_du_aero => null()
+
     ! Local variables
     type( field_type ) :: cca_unadjusted
     type( field_type ) :: deep_in_col, shallow_in_col, mid_in_col, deep_term
@@ -266,7 +278,16 @@ contains
     type( field_type ) :: dth_conv_noshal, dmv_conv_noshal
     type( field_type ) :: mr_ice
 
+    type( field_type ) :: rho_coarse
+    type(function_space_type), pointer :: wth_fine => null()
+ 	  type(function_space_type), pointer :: w3_coarse => null()
+    type( field_type ), target :: n_acc_ins_fine
+ 	  type( field_type ), target :: acc_ins_du_fine
+ 	  type( field_type ), target :: n_cor_ins_fine
+ 		type( field_type ), target :: cor_ins_du_fine
+
     type( mesh_type ), pointer  :: mesh => null()
+    type( mesh_type ), pointer  :: aerosol_mesh => null()
 
     if ( subroutine_timers ) call timer("conv_gr_alg")
 
@@ -454,6 +475,33 @@ contains
     height_wth => get_height_fv(Wtheta, mesh%get_id())
     height_w3  => get_height_fv(W3, mesh%get_id())
     delta      => get_delta_at_wtheta(mesh%get_id())
+
+    if (coarse_rad_aerosol) then
+      aerosol_mesh => cor_ins_du%get_mesh()
+ 	    w3_coarse => function_space_collection%get_fs( aerosol_mesh,  0, 0, W3 )
+ 	    call rho_coarse%initialise(vector_space = w3_coarse)
+
+      wth_fine => function_space_collection%get_fs( mesh,  0, 0, WTHETA )
+ 	    call acc_ins_du_fine%initialise(vector_space = wth_fine)
+ 	    call n_acc_ins_fine%initialise(vector_space = wth_fine)
+ 	    call cor_ins_du_fine%initialise(vector_space = wth_fine)
+      call n_cor_ins_fine%initialise(vector_space = wth_fine)
+
+      call map_rho_intermesh(rho_coarse, rho)
+ 	    call map_mr_intermesh(n_acc_ins_fine, n_acc_ins, rho, rho_coarse)
+ 	    call map_mr_intermesh(acc_ins_du_fine, acc_ins_du, rho, rho_coarse)
+ 	    call map_mr_intermesh(n_cor_ins_fine, n_cor_ins, rho, rho_coarse)
+ 	    call map_mr_intermesh(cor_ins_du_fine, cor_ins_du, rho, rho_coarse)
+      acc_ins_du_aero => acc_ins_du_fine
+      cor_ins_du_aero => cor_ins_du_fine
+      n_cor_ins_aero => n_cor_ins_fine
+      n_acc_ins_aero => n_acc_ins_fine
+    else
+      call aerosol_fields%get_field('n_acc_ins', n_acc_ins_aero)
+      call aerosol_fields%get_field('acc_ins_du', acc_ins_du_aero)
+      call aerosol_fields%get_field('n_cor_ins', n_cor_ins_aero)
+      call aerosol_fields%get_field('cor_ins_du', cor_ins_du_aero)
+    end if
 
     ! Initialise the convection diagnostics
     call initialise_diags_for_conv(theta_star,           &
@@ -653,10 +701,10 @@ contains
                           n_ait_ins,                                          &
                           ait_ins_bc,                                         &
                           ait_ins_om,                                         &
-                          n_acc_ins,                                          &
-                          acc_ins_du,                                         &
-                          n_cor_ins,                                          &
-                          cor_ins_du,                                         &
+                          n_acc_ins_aero,                                          &
+                          acc_ins_du_aero,                                         &
+                          n_cor_ins_aero,                                          &
+                          cor_ins_du_aero,                                         &
                           tnuc,                                               &
                           tnuc_nlcl,                                          &
                           deep_in_col,                                        &    ! 2-D local variables
@@ -700,6 +748,13 @@ contains
                           cca_unadjusted, dth_conv_noshal, dmv_conv_noshal )  &
                                            ) ! end of invoke
 
+
+    if (coarse_rad_aerosol) then
+ 	    call map_mr_intermesh(n_acc_ins, n_acc_ins_aero, rho_coarse, rho)
+ 	    call map_mr_intermesh(acc_ins_du, acc_ins_du_aero, rho_coarse, rho)
+ 	    call map_mr_intermesh(n_cor_ins, n_cor_ins_aero, rho_coarse, rho)
+ 	    call map_mr_intermesh(cor_ins_du, cor_ins_du_aero, rho_coarse, rho)
+ 	  end if
     if ( subroutine_timers ) call timer("conv_gr_alg")
 
     ! output diagnostics on last iteration only

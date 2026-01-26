@@ -200,6 +200,31 @@
         "ex1a_omp_C192_cce",
         "ex1a_omp_gnu",
     ],
+
+    "lfric_atm_ex1a_c224": [
+        "lfric_atm_nwp_gal9-C224_MG_ex1a_cce_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9-C224_MG_ex1a_cce_production-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero-C224_MG_ex1a_cce_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero-C224_MG_ex1a_cce_production-64bit-rbl32",
+    ],
+    "lfric_atm_ex1a_c192": [
+        "lfric_atm_nwp_gal9-C192_MG_ex1a_cce_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero-C192_MG_ex1a_cce_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero-C192_MG_ex1a_gnu_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero-C192_96_MG_ex1a_cce_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero-C192_96_MG_ex1a_gnu_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_ancil-C192_MG_ex1a_cce_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_ancil-C192_96_MG_ex1a_cce_fast-debug-64bit-rbl32",
+    ],
+    "lfric_atm_ex1a_l1":
+    [
+        "lfric_atm_nwp_gal9_coarse_aero_l1-C192_MG_ex1a_gnu_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero_ancil_l1-C192_MG_ex1a_gnu_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero_l1-C224_MG_ex1a_gnu_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9-C192_MG_ex1a_gnu_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9-C224_MG_ex1a_gnu_fast-debug-64bit-rbl32"
+
+    ],
     "lfric_atm_ex1a_threaded": [
         "lfric_atm_nwp_gal9_noukca_2T-C48_MG_ex1a_cce_full-debug-32bit",
         "lfric_atm_nwp_gal9_noukca_4T-C48_MG_ex1a_cce_production-32bit",
@@ -255,6 +280,11 @@
     "lfric_atm_ex1a": [
         "lfric_atm_ex1a_developer",
         "lfric_atm_ex1a_extra",
+    ],
+    "lfric_atm_c896": [
+        "lfric_atm_nwp_gal9-C896_MG_ex1a_cce_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero_l1-C896_MG_ex1a_cce_fast-debug-64bit-rbl32",
+        "lfric_atm_nwp_gal9_coarse_aero_l2-C896_MG_ex1a_cce_fast-debug-64bit-rbl32",
     ],
     "lfric_atm_ex1a_build": [
         "build_lfric_atm_ex1a_cce_fast-debug-32bit",

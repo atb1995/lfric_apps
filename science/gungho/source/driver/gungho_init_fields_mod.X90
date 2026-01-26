@@ -125,7 +125,11 @@ module gungho_init_fields_mod
   use compute_column_integral_kernel_mod, &
                                      only : compute_column_integral_kernel_type
   use sci_field_to_scalar_alg_mod,        only : field_to_scalar_alg
-  use fs_continuity_mod,                  only : W1, W2
+  use fs_continuity_mod,                  only : W1, W2, Wtheta
+  use multires_coupling_config_mod,    only: coarse_rad_aerosol
+  
+  use function_space_mod,              only: function_space_type
+  use function_space_collection_mod,   only: function_space_collection
 #ifdef UM_PHYSICS
   use planet_config_mod,                  only: rgas => rd
   use dust_parameters_mod,                only: rhop_def
@@ -567,6 +571,11 @@ subroutine create_model_data( modeldb,      &
     type( field_type ), pointer :: acc_ins_du
     type( field_type ), pointer :: n_cor_ins
     type( field_type ), pointer :: cor_ins_du
+    type( field_type ) :: n_acc_ins_fine
+    type( field_type ) :: acc_ins_du_fine
+    type( field_type ) :: n_cor_ins_fine
+    type( field_type ) :: cor_ins_du_fine
+    type(function_space_type), pointer :: wth_fine  => null()
 #endif
 
     type(field_collection_type),   pointer :: prognostic_fields
@@ -744,11 +753,36 @@ subroutine create_model_data( modeldb,      &
             call aerosol_fields%get_field('n_cor_ins', n_cor_ins)
             call aerosol_fields%get_field('cor_ins_du', cor_ins_du)
 
-            ! Transform UM dust fields to LFRIC dust fields
-            call invoke(dust_transform_kernel_type ( n_acc_ins, acc_ins_du, &
-                                                     n_cor_ins, cor_ins_du, &
+            if (coarse_rad_aerosol) then
+              ! Create fine mesh function space
+              wth_fine => function_space_collection%get_fs( mesh,  0, 0, WTHETA )
+
+              ! Create temporary fine fields
+              call n_acc_ins_fine%initialise( vector_space = wth_fine)
+              call acc_ins_du_fine%initialise( vector_space = wth_fine)
+              call n_cor_ins_fine%initialise( vector_space = wth_fine)
+              call cor_ins_du_fine%initialise( vector_space = wth_fine)
+
+              ! Transform UM dust fields to LFRIC dust fields
+              call invoke(dust_transform_kernel_type ( n_acc_ins_fine, acc_ins_du_fine, &
+                                                     n_cor_ins_fine, cor_ins_du_fine, &
                                                      dust1_mmr, dust2_mmr,  &
                                                      rhop_def, rgas ) )
+
+              ! Regrid coarse LFRIC dust fields to fine mesh
+              call map_scalar_intermesh( n_acc_ins, n_acc_ins_fine )
+              call map_scalar_intermesh( acc_ins_du, acc_ins_du_fine )
+              call map_scalar_intermesh( n_cor_ins, n_cor_ins_fine )
+              call map_scalar_intermesh( cor_ins_du, cor_ins_du_fine )
+            else
+
+              ! Transform UM dust fields to LFRIC dust fields
+              call invoke(dust_transform_kernel_type ( n_acc_ins, acc_ins_du, &
+                                                      n_cor_ins, cor_ins_du, &
+                                                      dust1_mmr, dust2_mmr,  &
+                                                      rhop_def, rgas ) )
+
+            end if
 
             call fd_fields%remove_field("dust1_mmr")
             call depository%remove_field("dust1_mmr")

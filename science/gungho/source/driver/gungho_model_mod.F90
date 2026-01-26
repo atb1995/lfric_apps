@@ -392,6 +392,7 @@ contains
     type(mesh_type), pointer :: twod_mesh           => null()
     type(mesh_type), pointer :: orography_twod_mesh => null()
     type(mesh_type), pointer :: orography_mesh      => null()
+    type(mesh_type), pointer :: aerosol_mesh      => null()
 
     procedure(filelist_populator), pointer :: files_init_ptr => null()
 
@@ -437,11 +438,13 @@ contains
 
     character(str_def) :: prime_mesh_name
     character(str_def) :: orography_mesh_name
+    character(str_def) :: aerosol_mesh_name
 
     logical(l_def) :: use_multires_coupling
     logical(l_def) :: l_multigrid
     logical(l_def) :: prepartitioned
     logical(l_def) :: apply_partition_check
+    logical(l_def) :: coarse_rad_aerosol
 
     integer(i_def) :: geometry
     integer(i_def) :: extrusion_method
@@ -490,6 +493,10 @@ contains
                                             multires_coupling_mesh_tags )
       call multires_coupling_nml%get_value( 'orography_mesh_name', &
                                             orography_mesh_name )
+      call multires_coupling_nml%get_value( 'aerosol_mesh_name', aerosol_mesh_name )
+      call multires_coupling_nml%get_value( 'coarse_rad_aerosol', coarse_rad_aerosol )
+    else
+      coarse_rad_aerosol = .false.
     end if
 
     if ( l_multigrid ) then
@@ -801,12 +808,15 @@ contains
   l_couple_sea_ice = .false.
   l_couple_ocean = .false.
 #endif
-
-
     !=======================================================================
     ! 4.0 Initialise output
     !=======================================================================
-    call basic_initialisations( mesh, modeldb%clock )
+    if (coarse_rad_aerosol) then
+      aerosol_mesh => mesh_collection%get_mesh(trim(aerosol_mesh_name))
+      call basic_initialisations( aerosol_mesh, modeldb%clock )
+    else
+      call basic_initialisations( mesh, modeldb%clock )
+    end if
 
     call log_event("Initialising I/O context", LOG_LEVEL_INFO)
 
@@ -920,7 +930,7 @@ contains
     !=======================================================================
     nullify(mesh, twod_mesh, shifted_mesh, double_level_mesh, chi, &
             chi_inventory, panel_id_inventory, files_init_ptr,     &
-            orography_mesh, orography_twod_mesh)
+            orography_mesh, orography_twod_mesh, aerosol_mesh)
     deallocate(base_mesh_names)
     if (allocated(meshes_to_shift))  deallocate(meshes_to_shift)
     if (allocated(meshes_to_double)) deallocate(meshes_to_double)
