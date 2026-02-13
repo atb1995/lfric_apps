@@ -307,6 +307,7 @@
         "lfric_atm_azspice_developer",
         "lfric_atm_ex1a_developer",
     ],
+    lfric_atm_clim:[ "lfric_atm_ex1a_clim",],
     "lfric_atm_extra": [
         "lfric_atm_azspice_extra",
         "lfric_atm_ex1a_extra",

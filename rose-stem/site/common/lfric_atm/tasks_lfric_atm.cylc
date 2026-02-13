@@ -525,6 +525,20 @@
         "plot_str": "plot_map.py -encorr $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
     }) %}
 
+{% elif task_ns.conf_name == "clim_gal9_coarse-C48_MG" %}
+
+    {% do task_dict.update({
+        "opt_confs": ["climate_coarse","um_dump"],
+        "resolution": "C48_MG",
+        "DT": 1800,
+        "tsteps": 1440,
+        "crun": 2,
+        "crun_compare": false,
+        "mpi_parts": 216,
+        "log_level": "info",
+        "plot_str": "plot_map.py -encorr $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
+    }) %}
+
 {% elif task_ns.conf_name == "clim_gal9_1T-C12" %}
     {% do task_dict.update({
         "opt_confs": ["climate", "physics_segmentation","um_dump","no_diags"],
