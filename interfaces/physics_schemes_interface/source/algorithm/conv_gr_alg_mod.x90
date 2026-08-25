@@ -7,6 +7,7 @@
 
 module conv_gr_alg_mod
 
+  use config_mod,           only: config_type
   use constants_mod,        only: i_def
   use field_mod,            only: field_type
   use integer_field_mod,    only: integer_field_type
@@ -18,6 +19,7 @@ module conv_gr_alg_mod
                                                map_rho_intermesh
   use multires_coupling_config_mod,    only: lowest_order_aero_flag, &
                                              coarse_rad_aerosol
+  use um_sizes_init_mod,    only: um_sizes_init
 
   use timestepping_config_mod,     only: outer_iterations
   use sci_geometric_constants_mod, only: get_height_fv, get_delta_at_wtheta
@@ -26,12 +28,17 @@ module conv_gr_alg_mod
   use function_space_collection_mod,   only: function_space_collection
   use io_config_mod,        only: subroutine_timers
   use timer_mod,            only: timer
+
+  use timing_mod,           only: start_timing, stop_timing, tik, LPROF
+
   ! xios output
   use io_config_mod,        only: write_diag, use_xios_io
   use conv_diags_mod,       only: initialise_diags_for_conv, &
                                   output_diags_for_conv
   use log_mod,              only: log_event, LOG_LEVEL_DEBUG
   use mesh_mod,             only: mesh_type
+  use map_fd_to_prognostics_alg_mod, only: set_wind
+  use physics_mappings_alg_mod, only: map_physics_winds
 
   implicit none
 
@@ -44,6 +51,10 @@ contains
   !>@details The UM Gregory Rowntree convection scheme does:
   !>             vertical mixing of heat, momentum and moisture,
   !>             as documented in UMDP27
+  !>@param[in]     config              Application namelist configuration object
+  !>@param[in,out] du_conv_w2          Wind increment in w2
+  !>@param[in,out] theta_latest        Current estimate of theta
+  !>@param[in,out] u_latest            Current esitmate of wind
   !>@param[in,out] mr                  Mixing ratios
   !>@param[in]     rho                 Dry density in its native (w3) space
   !>@param[in]     exner               Exner Pressure in the w3 space
@@ -56,7 +67,9 @@ contains
   !>@param[in]     aerosol_fields      Fields for aerosol scheme
   !>@param[in]     microphysics_fields Fields for microphysics scheme
   !>@param[in]     outer             Outer loop counter
-  subroutine conv_gr_alg(mr, rho, exner, derived_fields,                  &
+  subroutine conv_gr_alg(config,                                          &
+                         du_conv_w2, theta_latest, u_latest, mr, rho,     &
+                         exner, derived_fields,                           &
                          turbulence_fields, convection_fields,            &
                          cloud_fields, surface_fields, chemistry_fields,  &
                          aerosol_fields, microphysics_fields, outer)
@@ -65,8 +78,10 @@ contains
 
     implicit none
 
-    type( field_type ), intent( inout )     :: mr(nummr)
-    type( field_type ), intent( in )        :: rho, exner
+    type(config_type), intent(in) :: config
+
+    type( field_type ), intent( inout )     :: mr(nummr), du_conv_w2
+    type( field_type ), intent( in )        :: rho, exner, theta_latest, u_latest
 
     type( field_collection_type ), intent(in) :: derived_fields
     type( field_collection_type ), intent(in) :: turbulence_fields
@@ -85,9 +100,6 @@ contains
     type( field_type ), pointer :: wetrho_in_wth => null()
     type( field_type ), pointer :: wetrho_in_w3 => null()
     type( field_type ), pointer :: w_in_wth => null()
-    type( field_type ), pointer :: theta_star => null()
-    type( field_type ), pointer :: u_in_w3_star => null()
-    type( field_type ), pointer :: v_in_w3_star => null()
 
     type( field_type ), pointer :: zh => null()
     type( integer_field_type ), pointer :: ntml => null()
@@ -500,6 +512,7 @@ contains
     type( field_type ) :: massflux_up_half, massflux_up_cmpta
     type( field_type ) :: dth_conv_noshal, dmv_conv_noshal
     type( field_type ) :: mr_ice
+    type( field_type ) :: u_in_w3_latest, v_in_w3_latest, w_in_w3_latest, dw_conv
 
     type( field_type ) :: rho_coarse
     type(function_space_type), pointer :: wth_fine => null()
@@ -511,8 +524,10 @@ contains
 
     type( mesh_type ), pointer  :: mesh => null()
     type( mesh_type ), pointer  :: aerosol_mesh => null()
+    integer(i_def) :: ncells
+    integer( tik)               :: id
 
-    if ( subroutine_timers ) call timer("conv_gr_alg")
+    if ( LPROF ) call start_timing( id, 'convection.gr' )
 
     call log_event( 'Running GR convection scheme', LOG_LEVEL_DEBUG )
 
@@ -524,9 +539,6 @@ contains
     call derived_fields%get_field('wetrho_in_w3', wetrho_in_w3)
     call derived_fields%get_field('rho_in_wth', rho_in_wth)
     call derived_fields%get_field('w_in_wth', w_in_wth)
-    call derived_fields%get_field('theta_star', theta_star)
-    call derived_fields%get_field('u_in_w3_star', u_in_w3_star)
-    call derived_fields%get_field('v_in_w3_star', v_in_w3_star)
 
     ! Unpack turbulence fields
     call turbulence_fields%get_field('zh', zh)
@@ -695,9 +707,9 @@ contains
     call microphysics_fields%get_field('tnuc', tnuc)
     call microphysics_fields%get_field('tnuc_nlcl', tnuc_nlcl)
 
-    height_wth => get_height_fv(Wtheta, mesh%get_id())
-    height_w3  => get_height_fv(W3, mesh%get_id())
-    delta      => get_delta_at_wtheta(mesh%get_id())
+    height_wth => get_height_fv(config, mesh, Wtheta)
+    height_w3  => get_height_fv(config, mesh, W3)
+    delta      => get_delta_at_wtheta(mesh)
 
     if (coarse_rad_aerosol) then
       aerosol_mesh => cor_ins_du%get_mesh()
@@ -821,120 +833,120 @@ contains
       call tnuc_nlcl_fine%initialise(vector_space = wth_fine)
 
       call map_rho_intermesh(rho_coarse, rho)
-      call map_mr_intermesh(n_acc_ins_fine, n_acc_ins, rho, rho_coarse)
-      call map_mr_intermesh(acc_ins_du_fine, acc_ins_du, rho, rho_coarse)
-      call map_mr_intermesh(n_cor_ins_fine, n_cor_ins, rho, rho_coarse)
-      call map_mr_intermesh(cor_ins_du_fine, cor_ins_du, rho, rho_coarse)
+      call map_mr_intermesh(config, n_acc_ins_fine, n_acc_ins, rho, rho_coarse)
+      call map_mr_intermesh(config, acc_ins_du_fine, acc_ins_du, rho, rho_coarse)
+      call map_mr_intermesh(config, n_cor_ins_fine, n_cor_ins, rho, rho_coarse)
+      call map_mr_intermesh(config, cor_ins_du_fine, cor_ins_du, rho, rho_coarse)
       
-      call map_mr_intermesh(o3p_fine, o3p, rho, rho_coarse)
-      call map_mr_intermesh(o1d_fine, o1d, rho, rho_coarse)
-      call map_mr_intermesh(o3_fine, o3, rho, rho_coarse)
-      call map_mr_intermesh(n_fine, n, rho, rho_coarse)
-      call map_mr_intermesh(no_fine, no, rho, rho_coarse)
-      call map_mr_intermesh(no3_fine, no3, rho, rho_coarse)
-      call map_mr_intermesh(lumped_n_fine, lumped_n, rho, rho_coarse)
-      call map_mr_intermesh(n2o5_fine, n2o5, rho, rho_coarse)
-      call map_mr_intermesh(ho2no2_fine, ho2no2, rho, rho_coarse)
-      call map_mr_intermesh(hono2_fine, hono2, rho, rho_coarse)
-      call map_mr_intermesh(h2o2_fine, h2o2, rho, rho_coarse)
-      call map_mr_intermesh(ch4_fine, ch4, rho, rho_coarse)
-      call map_mr_intermesh(co_fine, co, rho, rho_coarse)
-      call map_mr_intermesh(hcho_fine, hcho, rho, rho_coarse)
-      call map_mr_intermesh(meoo_fine, meoo, rho, rho_coarse)
-      call map_mr_intermesh(meooh_fine, meooh, rho, rho_coarse)
-      call map_mr_intermesh(h_fine, h, rho, rho_coarse)
-      call map_mr_intermesh(oh_fine, oh, rho, rho_coarse)
-      call map_mr_intermesh(ho2_fine, ho2, rho, rho_coarse)
-      call map_mr_intermesh(cl_fine, cl, rho, rho_coarse)
-      call map_mr_intermesh(cl2o2_fine, cl2o2, rho, rho_coarse)
-      call map_mr_intermesh(clo_fine, clo, rho, rho_coarse)
-      call map_mr_intermesh(oclo_fine, oclo, rho, rho_coarse)
-      call map_mr_intermesh(br_fine, br, rho, rho_coarse)
-      call map_mr_intermesh(lumped_br_fine, lumped_br, rho, rho_coarse)
-      call map_mr_intermesh(brcl_fine, brcl, rho, rho_coarse)
-      call map_mr_intermesh(brono2_fine, brono2, rho, rho_coarse)
-      call map_mr_intermesh(n2o_fine, n2o, rho, rho_coarse)
-      call map_mr_intermesh(lumped_cl_fine, lumped_cl, rho, rho_coarse)
-      call map_mr_intermesh(hocl_fine, hocl, rho, rho_coarse)
-      call map_mr_intermesh(hbr_fine, hbr, rho, rho_coarse)
-      call map_mr_intermesh(hobr_fine, hobr, rho, rho_coarse)
-      call map_mr_intermesh(clono2_fine, clono2, rho, rho_coarse)
-      call map_mr_intermesh(cfcl3_fine, cfcl3, rho, rho_coarse)
-      call map_mr_intermesh(cf2cl2_fine, cf2cl2, rho, rho_coarse)
-      call map_mr_intermesh(mebr_fine, mebr, rho, rho_coarse)
-      call map_mr_intermesh(hono_fine, hono, rho, rho_coarse)
-      call map_mr_intermesh(c2h6_fine, c2h6, rho, rho_coarse)
-      call map_mr_intermesh(etoo_fine, etoo, rho, rho_coarse)
-      call map_mr_intermesh(etooh_fine, etooh, rho, rho_coarse)
-      call map_mr_intermesh(mecho_fine, mecho, rho, rho_coarse)
-      call map_mr_intermesh(meco3_fine, meco3, rho, rho_coarse)
-      call map_mr_intermesh(pan_fine, pan, rho, rho_coarse)
-      call map_mr_intermesh(c3h8_fine, c3h8, rho, rho_coarse)
-      call map_mr_intermesh(n_proo_fine, n_proo, rho, rho_coarse)
-      call map_mr_intermesh(i_proo_fine, i_proo, rho, rho_coarse)
-      call map_mr_intermesh(n_prooh_fine, n_prooh, rho, rho_coarse)
-      call map_mr_intermesh(i_prooh_fine, i_prooh, rho, rho_coarse)
-      call map_mr_intermesh(etcho_fine, etcho, rho, rho_coarse)
-      call map_mr_intermesh(etco3_fine, etco3, rho, rho_coarse)
-      call map_mr_intermesh(me2co_fine, me2co, rho, rho_coarse)
-      call map_mr_intermesh(mecoch2oo_fine, mecoch2oo, rho, rho_coarse)
-      call map_mr_intermesh(mecoch2ooh_fine, mecoch2ooh, rho, rho_coarse)
-      call map_mr_intermesh(ppan_fine, ppan, rho, rho_coarse)
-      call map_mr_intermesh(meono2_fine, meono2, rho, rho_coarse)
-      call map_mr_intermesh(c5h8_fine, c5h8, rho, rho_coarse)
-      call map_mr_intermesh(iso2_fine, iso2, rho, rho_coarse)
-      call map_mr_intermesh(isooh_fine, isooh, rho, rho_coarse)
-      call map_mr_intermesh(ison_fine, ison, rho, rho_coarse)
-      call map_mr_intermesh(macr_fine, macr, rho, rho_coarse)
-      call map_mr_intermesh(macro2_fine, macro2, rho, rho_coarse)
-      call map_mr_intermesh(macrooh_fine, macrooh, rho, rho_coarse)
-      call map_mr_intermesh(mpan_fine, mpan, rho, rho_coarse)
-      call map_mr_intermesh(hacet_fine, hacet, rho, rho_coarse)
-      call map_mr_intermesh(mgly_fine, mgly, rho, rho_coarse)
-      call map_mr_intermesh(nald_fine, nald, rho, rho_coarse)
-      call map_mr_intermesh(hcooh_fine, hcooh, rho, rho_coarse)
-      call map_mr_intermesh(meco3h_fine, meco3h, rho, rho_coarse)
-      call map_mr_intermesh(meco2h_fine, meco2h, rho, rho_coarse)
-      call map_mr_intermesh(h2_fine, h2, rho, rho_coarse)
-      call map_mr_intermesh(meoh_fine, meoh, rho, rho_coarse)
-      call map_mr_intermesh(msa_fine, msa, rho, rho_coarse)
-      call map_mr_intermesh(nh3_fine, nh3, rho, rho_coarse)
-      call map_mr_intermesh(cs2_fine, cs2, rho, rho_coarse)
-      call map_mr_intermesh(csul_fine, csul, rho, rho_coarse)
-      call map_mr_intermesh(h2s_fine, h2s, rho, rho_coarse)
-      call map_mr_intermesh(so3_fine, so3, rho, rho_coarse)
-      call map_mr_intermesh(passive_o3_fine, passive_o3, rho, rho_coarse)
-      call map_mr_intermesh(age_of_air_fine, age_of_air, rho, rho_coarse)
+      call map_mr_intermesh(config, o3p_fine, o3p, rho, rho_coarse)
+      call map_mr_intermesh(config, o1d_fine, o1d, rho, rho_coarse)
+      call map_mr_intermesh(config, o3_fine, o3, rho, rho_coarse)
+      call map_mr_intermesh(config, n_fine, n, rho, rho_coarse)
+      call map_mr_intermesh(config, no_fine, no, rho, rho_coarse)
+      call map_mr_intermesh(config, no3_fine, no3, rho, rho_coarse)
+      call map_mr_intermesh(config, lumped_n_fine, lumped_n, rho, rho_coarse)
+      call map_mr_intermesh(config, n2o5_fine, n2o5, rho, rho_coarse)
+      call map_mr_intermesh(config, ho2no2_fine, ho2no2, rho, rho_coarse)
+      call map_mr_intermesh(config, hono2_fine, hono2, rho, rho_coarse)
+      call map_mr_intermesh(config, h2o2_fine, h2o2, rho, rho_coarse)
+      call map_mr_intermesh(config, ch4_fine, ch4, rho, rho_coarse)
+      call map_mr_intermesh(config, co_fine, co, rho, rho_coarse)
+      call map_mr_intermesh(config, hcho_fine, hcho, rho, rho_coarse)
+      call map_mr_intermesh(config, meoo_fine, meoo, rho, rho_coarse)
+      call map_mr_intermesh(config, meooh_fine, meooh, rho, rho_coarse)
+      call map_mr_intermesh(config, h_fine, h, rho, rho_coarse)
+      call map_mr_intermesh(config, oh_fine, oh, rho, rho_coarse)
+      call map_mr_intermesh(config, ho2_fine, ho2, rho, rho_coarse)
+      call map_mr_intermesh(config, cl_fine, cl, rho, rho_coarse)
+      call map_mr_intermesh(config, cl2o2_fine, cl2o2, rho, rho_coarse)
+      call map_mr_intermesh(config, clo_fine, clo, rho, rho_coarse)
+      call map_mr_intermesh(config, oclo_fine, oclo, rho, rho_coarse)
+      call map_mr_intermesh(config, br_fine, br, rho, rho_coarse)
+      call map_mr_intermesh(config, lumped_br_fine, lumped_br, rho, rho_coarse)
+      call map_mr_intermesh(config, brcl_fine, brcl, rho, rho_coarse)
+      call map_mr_intermesh(config, brono2_fine, brono2, rho, rho_coarse)
+      call map_mr_intermesh(config, n2o_fine, n2o, rho, rho_coarse)
+      call map_mr_intermesh(config, lumped_cl_fine, lumped_cl, rho, rho_coarse)
+      call map_mr_intermesh(config, hocl_fine, hocl, rho, rho_coarse)
+      call map_mr_intermesh(config, hbr_fine, hbr, rho, rho_coarse)
+      call map_mr_intermesh(config, hobr_fine, hobr, rho, rho_coarse)
+      call map_mr_intermesh(config, clono2_fine, clono2, rho, rho_coarse)
+      call map_mr_intermesh(config, cfcl3_fine, cfcl3, rho, rho_coarse)
+      call map_mr_intermesh(config, cf2cl2_fine, cf2cl2, rho, rho_coarse)
+      call map_mr_intermesh(config, mebr_fine, mebr, rho, rho_coarse)
+      call map_mr_intermesh(config, hono_fine, hono, rho, rho_coarse)
+      call map_mr_intermesh(config, c2h6_fine, c2h6, rho, rho_coarse)
+      call map_mr_intermesh(config, etoo_fine, etoo, rho, rho_coarse)
+      call map_mr_intermesh(config, etooh_fine, etooh, rho, rho_coarse)
+      call map_mr_intermesh(config, mecho_fine, mecho, rho, rho_coarse)
+      call map_mr_intermesh(config, meco3_fine, meco3, rho, rho_coarse)
+      call map_mr_intermesh(config, pan_fine, pan, rho, rho_coarse)
+      call map_mr_intermesh(config, c3h8_fine, c3h8, rho, rho_coarse)
+      call map_mr_intermesh(config, n_proo_fine, n_proo, rho, rho_coarse)
+      call map_mr_intermesh(config, i_proo_fine, i_proo, rho, rho_coarse)
+      call map_mr_intermesh(config, n_prooh_fine, n_prooh, rho, rho_coarse)
+      call map_mr_intermesh(config, i_prooh_fine, i_prooh, rho, rho_coarse)
+      call map_mr_intermesh(config, etcho_fine, etcho, rho, rho_coarse)
+      call map_mr_intermesh(config, etco3_fine, etco3, rho, rho_coarse)
+      call map_mr_intermesh(config, me2co_fine, me2co, rho, rho_coarse)
+      call map_mr_intermesh(config, mecoch2oo_fine, mecoch2oo, rho, rho_coarse)
+      call map_mr_intermesh(config, mecoch2ooh_fine, mecoch2ooh, rho, rho_coarse)
+      call map_mr_intermesh(config, ppan_fine, ppan, rho, rho_coarse)
+      call map_mr_intermesh(config, meono2_fine, meono2, rho, rho_coarse)
+      call map_mr_intermesh(config, c5h8_fine, c5h8, rho, rho_coarse)
+      call map_mr_intermesh(config, iso2_fine, iso2, rho, rho_coarse)
+      call map_mr_intermesh(config, isooh_fine, isooh, rho, rho_coarse)
+      call map_mr_intermesh(config, ison_fine, ison, rho, rho_coarse)
+      call map_mr_intermesh(config, macr_fine, macr, rho, rho_coarse)
+      call map_mr_intermesh(config, macro2_fine, macro2, rho, rho_coarse)
+      call map_mr_intermesh(config, macrooh_fine, macrooh, rho, rho_coarse)
+      call map_mr_intermesh(config, mpan_fine, mpan, rho, rho_coarse)
+      call map_mr_intermesh(config, hacet_fine, hacet, rho, rho_coarse)
+      call map_mr_intermesh(config, mgly_fine, mgly, rho, rho_coarse)
+      call map_mr_intermesh(config, nald_fine, nald, rho, rho_coarse)
+      call map_mr_intermesh(config, hcooh_fine, hcooh, rho, rho_coarse)
+      call map_mr_intermesh(config, meco3h_fine, meco3h, rho, rho_coarse)
+      call map_mr_intermesh(config, meco2h_fine, meco2h, rho, rho_coarse)
+      call map_mr_intermesh(config, h2_fine, h2, rho, rho_coarse)
+      call map_mr_intermesh(config, meoh_fine, meoh, rho, rho_coarse)
+      call map_mr_intermesh(config, msa_fine, msa, rho, rho_coarse)
+      call map_mr_intermesh(config, nh3_fine, nh3, rho, rho_coarse)
+      call map_mr_intermesh(config, cs2_fine, cs2, rho, rho_coarse)
+      call map_mr_intermesh(config, csul_fine, csul, rho, rho_coarse)
+      call map_mr_intermesh(config, h2s_fine, h2s, rho, rho_coarse)
+      call map_mr_intermesh(config, so3_fine, so3, rho, rho_coarse)
+      call map_mr_intermesh(config, passive_o3_fine, passive_o3, rho, rho_coarse)
+      call map_mr_intermesh(config, age_of_air_fine, age_of_air, rho, rho_coarse)
       
-      call map_mr_intermesh(dms_fine, dms, rho, rho_coarse)
-      call map_mr_intermesh(so2_fine, so2, rho, rho_coarse)
-      call map_mr_intermesh(h2so4_fine, h2so4, rho, rho_coarse)
-      call map_mr_intermesh(dmso_fine, dmso, rho, rho_coarse)
-      call map_mr_intermesh(monoterpene_fine, monoterpene, rho, rho_coarse)
-      call map_mr_intermesh(secondary_organic_fine, secondary_organic, rho, rho_coarse)
+      call map_mr_intermesh(config, dms_fine, dms, rho, rho_coarse)
+      call map_mr_intermesh(config, so2_fine, so2, rho, rho_coarse)
+      call map_mr_intermesh(config, h2so4_fine, h2so4, rho, rho_coarse)
+      call map_mr_intermesh(config, dmso_fine, dmso, rho, rho_coarse)
+      call map_mr_intermesh(config, monoterpene_fine, monoterpene, rho, rho_coarse)
+      call map_mr_intermesh(config, secondary_organic_fine, secondary_organic, rho, rho_coarse)
       
-      call map_mr_intermesh(n_nuc_sol_fine, n_nuc_sol, rho, rho_coarse)
-      call map_mr_intermesh(nuc_sol_su_fine, nuc_sol_su, rho, rho_coarse)
-      call map_mr_intermesh(nuc_sol_om_fine, nuc_sol_om, rho, rho_coarse)
-      call map_mr_intermesh(n_ait_sol_fine, n_ait_sol, rho, rho_coarse)
-      call map_mr_intermesh(ait_sol_su_fine, ait_sol_su, rho, rho_coarse)
-      call map_mr_intermesh(ait_sol_bc_fine, ait_sol_bc, rho, rho_coarse)
-      call map_mr_intermesh(ait_sol_om_fine, ait_sol_om, rho, rho_coarse)
-      call map_mr_intermesh(n_acc_sol_fine, n_acc_sol, rho, rho_coarse)
-      call map_mr_intermesh(acc_sol_su_fine, acc_sol_su, rho, rho_coarse)
-      call map_mr_intermesh(acc_sol_bc_fine, acc_sol_bc, rho, rho_coarse)
-      call map_mr_intermesh(acc_sol_om_fine, acc_sol_om, rho, rho_coarse)
-      call map_mr_intermesh(acc_sol_ss_fine, acc_sol_ss, rho, rho_coarse)
-      call map_mr_intermesh(n_cor_sol_fine, n_cor_sol, rho, rho_coarse)
-      call map_mr_intermesh(cor_sol_su_fine, cor_sol_su, rho, rho_coarse)
-      call map_mr_intermesh(cor_sol_bc_fine, cor_sol_bc, rho, rho_coarse)
-      call map_mr_intermesh(cor_sol_om_fine, cor_sol_om, rho, rho_coarse)
-      call map_mr_intermesh(cor_sol_ss_fine, cor_sol_ss, rho, rho_coarse)
-      call map_mr_intermesh(n_ait_ins_fine, n_ait_ins, rho, rho_coarse)
-      call map_mr_intermesh(ait_ins_bc_fine, ait_ins_bc, rho, rho_coarse)
-      call map_mr_intermesh(ait_ins_om_fine, ait_ins_om, rho, rho_coarse)
-      call map_mr_intermesh(tnuc_fine, tnuc, rho, rho_coarse)
-      call map_mr_intermesh(tnuc_nlcl_fine, tnuc_nlcl, rho, rho_coarse)
+      call map_mr_intermesh(config, n_nuc_sol_fine, n_nuc_sol, rho, rho_coarse)
+      call map_mr_intermesh(config, nuc_sol_su_fine, nuc_sol_su, rho, rho_coarse)
+      call map_mr_intermesh(config, nuc_sol_om_fine, nuc_sol_om, rho, rho_coarse)
+      call map_mr_intermesh(config, n_ait_sol_fine, n_ait_sol, rho, rho_coarse)
+      call map_mr_intermesh(config, ait_sol_su_fine, ait_sol_su, rho, rho_coarse)
+      call map_mr_intermesh(config, ait_sol_bc_fine, ait_sol_bc, rho, rho_coarse)
+      call map_mr_intermesh(config, ait_sol_om_fine, ait_sol_om, rho, rho_coarse)
+      call map_mr_intermesh(config, n_acc_sol_fine, n_acc_sol, rho, rho_coarse)
+      call map_mr_intermesh(config, acc_sol_su_fine, acc_sol_su, rho, rho_coarse)
+      call map_mr_intermesh(config, acc_sol_bc_fine, acc_sol_bc, rho, rho_coarse)
+      call map_mr_intermesh(config, acc_sol_om_fine, acc_sol_om, rho, rho_coarse)
+      call map_mr_intermesh(config, acc_sol_ss_fine, acc_sol_ss, rho, rho_coarse)
+      call map_mr_intermesh(config, n_cor_sol_fine, n_cor_sol, rho, rho_coarse)
+      call map_mr_intermesh(config, cor_sol_su_fine, cor_sol_su, rho, rho_coarse)
+      call map_mr_intermesh(config, cor_sol_bc_fine, cor_sol_bc, rho, rho_coarse)
+      call map_mr_intermesh(config, cor_sol_om_fine, cor_sol_om, rho, rho_coarse)
+      call map_mr_intermesh(config, cor_sol_ss_fine, cor_sol_ss, rho, rho_coarse)
+      call map_mr_intermesh(config, n_ait_ins_fine, n_ait_ins, rho, rho_coarse)
+      call map_mr_intermesh(config, ait_ins_bc_fine, ait_ins_bc, rho, rho_coarse)
+      call map_mr_intermesh(config, ait_ins_om_fine, ait_ins_om, rho, rho_coarse)
+      call map_mr_intermesh(config, tnuc_fine, tnuc, rho, rho_coarse)
+      call map_mr_intermesh(config, tnuc_nlcl_fine, tnuc_nlcl, rho, rho_coarse)
       
       ! Point _aero pointers to _fine fields
       acc_ins_du_aero => acc_ins_du_fine
@@ -1059,8 +1071,7 @@ contains
     end if
 
     ! Initialise the convection diagnostics
-    call initialise_diags_for_conv(theta_star,           &
-                                   rho,                  &
+    call initialise_diags_for_conv(rho,                  &
                                    zh,                   &
                                    deep_in_col,          & ! 2-D local variables
                                    shallow_in_col,       &
@@ -1111,6 +1122,18 @@ contains
       call invoke(inc_X_plus_Y(mr_ice, mr(imr_ci)))
     end if
 
+    ! Compute the wind predictors at cell centres
+    call rho%copy_field_properties(u_in_w3_latest)
+    call rho%copy_field_properties(v_in_w3_latest)
+    call rho%copy_field_properties(w_in_w3_latest)
+    call map_physics_winds(u_in_w3_latest, v_in_w3_latest, w_in_w3_latest, &
+                           u_latest)
+    call w_in_w3_latest%field_final()
+
+    ! Switch UM to running i-first on whole domain
+    ncells = mesh%get_last_edge_cell()
+    call um_sizes_init(ncells)
+    
     ! set increments to zero
     call invoke( setval_c(dt_conv, 0.0_r_def),          &
                  setval_c(dmv_conv, 0.0_r_def),         &
@@ -1134,7 +1157,7 @@ contains
                  ! call the scheme
                  conv_gr_kernel_type( outer, rho, rho_in_wth, wetrho_in_w3,   &
                       wetrho_in_wth, exner, exner_in_wth, w_in_wth,       &
-                      theta_star, u_in_w3_star, v_in_w3_star,             &
+                      theta_latest, u_in_w3_latest, v_in_w3_latest,       &
                       height_w3, height_wth, delta,                       &
                       ntml, cumulus, tile_fraction,                       &
                       dt_conv, dmv_conv, dmcl_conv,                       &
@@ -1305,122 +1328,132 @@ contains
 
 
     if (coarse_rad_aerosol) then
-      call map_mr_intermesh(n_acc_ins, n_acc_ins_aero, rho_coarse, rho)
-      call map_mr_intermesh(acc_ins_du, acc_ins_du_aero, rho_coarse, rho)
-      call map_mr_intermesh(n_cor_ins, n_cor_ins_aero, rho_coarse, rho)
-      call map_mr_intermesh(cor_ins_du, cor_ins_du_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_acc_ins, n_acc_ins_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, acc_ins_du, acc_ins_du_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_cor_ins, n_cor_ins_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cor_ins_du, cor_ins_du_aero, rho_coarse, rho)
       
-      call map_mr_intermesh(o3p, o3p_aero, rho_coarse, rho)
-      call map_mr_intermesh(o1d, o1d_aero, rho_coarse, rho)
-      call map_mr_intermesh(o3, o3p_aero, rho_coarse, rho)
-      call map_mr_intermesh(n, n_aero, rho_coarse, rho)
-      call map_mr_intermesh(no, no_aero, rho_coarse, rho)
-      call map_mr_intermesh(no3, no3_aero, rho_coarse, rho)
-      call map_mr_intermesh(lumped_n, lumped_n_aero, rho_coarse, rho)
-      call map_mr_intermesh(n2o5, n2o5_aero, rho_coarse, rho)
-      call map_mr_intermesh(ho2no2, ho2no2_aero, rho_coarse, rho)
-      call map_mr_intermesh(hono2, hono2_aero, rho_coarse, rho)
-      call map_mr_intermesh(h2o2, h2o2_aero, rho_coarse, rho)
-      call map_mr_intermesh(ch4, ch4_aero, rho_coarse, rho)
-      call map_mr_intermesh(co, co_aero, rho_coarse, rho)
-      call map_mr_intermesh(hcho, hcho_aero, rho_coarse, rho)
-      call map_mr_intermesh(meoo, meoo_aero, rho_coarse, rho)
-      call map_mr_intermesh(meooh, meooh_aero, rho_coarse, rho)
-      call map_mr_intermesh(h, h_aero, rho_coarse, rho)
-      call map_mr_intermesh(oh, oh_aero, rho_coarse, rho)
-      call map_mr_intermesh(ho2, ho2_aero, rho_coarse, rho)
-      call map_mr_intermesh(cl, cl_aero, rho_coarse, rho)
-      call map_mr_intermesh(cl2o2, cl2o2_aero, rho_coarse, rho)
-      call map_mr_intermesh(clo, clo_aero, rho_coarse, rho)
-      call map_mr_intermesh(oclo, oclo_aero, rho_coarse, rho)
-      call map_mr_intermesh(br, br_aero, rho_coarse, rho)
-      call map_mr_intermesh(lumped_br, lumped_br_aero, rho_coarse, rho)
-      call map_mr_intermesh(brcl, brcl_aero, rho_coarse, rho)
-      call map_mr_intermesh(brono2, brono2_aero, rho_coarse, rho)
-      call map_mr_intermesh(n2o, n2o_aero, rho_coarse, rho)
-      call map_mr_intermesh(lumped_cl, lumped_cl_aero, rho_coarse, rho)
-      call map_mr_intermesh(hocl, hocl_aero, rho_coarse, rho)
-      call map_mr_intermesh(hbr, hbr_aero, rho_coarse, rho)
-      call map_mr_intermesh(hobr, hobr_aero, rho_coarse, rho)
-      call map_mr_intermesh(clono2, clono2_aero, rho_coarse, rho)
-      call map_mr_intermesh(cfcl3, cfcl3_aero, rho_coarse, rho)
-      call map_mr_intermesh(cf2cl2, cf2cl2_aero, rho_coarse, rho)
-      call map_mr_intermesh(mebr, mebr_aero, rho_coarse, rho)
-      call map_mr_intermesh(hono, hono_aero, rho_coarse, rho)
-      call map_mr_intermesh(c2h6, c2h6_aero, rho_coarse, rho)
-      call map_mr_intermesh(etoo, etoo_aero, rho_coarse, rho)
-      call map_mr_intermesh(etooh, etooh_aero, rho_coarse, rho)
-      call map_mr_intermesh(mecho, mecho_aero, rho_coarse, rho)
-      call map_mr_intermesh(meco3, meco3_aero, rho_coarse, rho)
-      call map_mr_intermesh(pan, pan_aero, rho_coarse, rho)
-      call map_mr_intermesh(c3h8, c3h8_aero, rho_coarse, rho)
-      call map_mr_intermesh(n_proo, n_proo_aero, rho_coarse, rho)
-      call map_mr_intermesh(i_proo, i_proo_aero, rho_coarse, rho)
-      call map_mr_intermesh(n_prooh, n_prooh_aero, rho_coarse, rho)
-      call map_mr_intermesh(i_prooh, i_prooh_aero, rho_coarse, rho)
-      call map_mr_intermesh(etcho, etcho_aero, rho_coarse, rho)
-      call map_mr_intermesh(etco3, etco3_aero, rho_coarse, rho)
-      call map_mr_intermesh(me2co, me2co_aero, rho_coarse, rho)
-      call map_mr_intermesh(mecoch2oo, mecoch2oo_aero, rho_coarse, rho)
-      call map_mr_intermesh(mecoch2ooh, mecoch2ooh_aero, rho_coarse, rho)
-      call map_mr_intermesh(ppan, ppan_aero, rho_coarse, rho)
-      call map_mr_intermesh(meono2, meono2_aero, rho_coarse, rho)
-      call map_mr_intermesh(c5h8, c5h8_aero, rho_coarse, rho)
-      call map_mr_intermesh(iso2, iso2_aero, rho_coarse, rho)
-      call map_mr_intermesh(isooh, isooh_aero, rho_coarse, rho)
-      call map_mr_intermesh(ison, ison_aero, rho_coarse, rho)
-      call map_mr_intermesh(macr, macr_aero, rho_coarse, rho)
-      call map_mr_intermesh(macro2, macro2_aero, rho_coarse, rho)
-      call map_mr_intermesh(macrooh, macrooh_aero, rho_coarse, rho)
-      call map_mr_intermesh(mpan, mpan_aero, rho_coarse, rho)
-      call map_mr_intermesh(hacet, hacet_aero, rho_coarse, rho)
-      call map_mr_intermesh(mgly, mgly_aero, rho_coarse, rho)
-      call map_mr_intermesh(nald, nald_aero, rho_coarse, rho)
-      call map_mr_intermesh(hcooh, hcooh_aero, rho_coarse, rho)
-      call map_mr_intermesh(meco3h, meco3h_aero, rho_coarse, rho)
-      call map_mr_intermesh(meco2h, meco2h_aero, rho_coarse, rho)
-      call map_mr_intermesh(h2, h2_aero, rho_coarse, rho)
-      call map_mr_intermesh(meoh, meoh_aero, rho_coarse, rho)
-      call map_mr_intermesh(msa, msa_aero, rho_coarse, rho)
-      call map_mr_intermesh(nh3, nh3_aero, rho_coarse, rho)
-      call map_mr_intermesh(cs2, cs2_aero, rho_coarse, rho)
-      call map_mr_intermesh(csul, csul_aero, rho_coarse, rho)
-      call map_mr_intermesh(h2s, h2s_aero, rho_coarse, rho)
-      call map_mr_intermesh(so3, so3_aero, rho_coarse, rho)
-      call map_mr_intermesh(passive_o3, passive_o3_aero, rho_coarse, rho)
-      call map_mr_intermesh(age_of_air, age_of_air_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, o3p, o3p_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, o1d, o1d_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, o3, o3_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n, n_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, no, no_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, no3, no3_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, lumped_n, lumped_n_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n2o5, n2o5_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ho2no2, ho2no2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, hono2, hono2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, h2o2, h2o2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ch4, ch4_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, co, co_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, hcho, hcho_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, meoo, meoo_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, meooh, meooh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, h, h_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, oh, oh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ho2, ho2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cl, cl_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cl2o2, cl2o2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, clo, clo_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, oclo, oclo_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, br, br_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, lumped_br, lumped_br_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, brcl, brcl_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, brono2, brono2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n2o, n2o_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, lumped_cl, lumped_cl_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, hocl, hocl_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, hbr, hbr_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, hobr, hobr_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, clono2, clono2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cfcl3, cfcl3_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cf2cl2, cf2cl2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, mebr, mebr_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, hono, hono_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, c2h6, c2h6_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, etoo, etoo_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, etooh, etooh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, mecho, mecho_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, meco3, meco3_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, pan, pan_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, c3h8, c3h8_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_proo, n_proo_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, i_proo, i_proo_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_prooh, n_prooh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, i_prooh, i_prooh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, etcho, etcho_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, etco3, etco3_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, me2co, me2co_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, mecoch2oo, mecoch2oo_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, mecoch2ooh, mecoch2ooh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ppan, ppan_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, meono2, meono2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, c5h8, c5h8_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, iso2, iso2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, isooh, isooh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ison, ison_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, macr, macr_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, macro2, macro2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, macrooh, macrooh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, mpan, mpan_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, hacet, hacet_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, mgly, mgly_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, nald, nald_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, hcooh, hcooh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, meco3h, meco3h_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, meco2h, meco2h_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, h2, h2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, meoh, meoh_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, msa, msa_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, nh3, nh3_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cs2, cs2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, csul, csul_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, h2s, h2s_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, so3, so3_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, passive_o3, passive_o3_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, age_of_air, age_of_air_aero, rho_coarse, rho)
       
-      call map_mr_intermesh(dms, dms_aero, rho_coarse, rho)
-      call map_mr_intermesh(so2, so2_aero, rho_coarse, rho)
-      call map_mr_intermesh(h2so4, h2so4_aero, rho_coarse, rho)
-      call map_mr_intermesh(dmso, dmso_aero, rho_coarse, rho)
-      call map_mr_intermesh(monoterpene, monoterpene_aero, rho_coarse, rho)
-      call map_mr_intermesh(secondary_organic, secondary_organic_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, dms, dms_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, so2, so2_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, h2so4, h2so4_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, dmso, dmso_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, monoterpene, monoterpene_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, secondary_organic, secondary_organic_aero, rho_coarse, rho)
       
-      call map_mr_intermesh(n_nuc_sol, n_nuc_sol_aero, rho_coarse, rho)
-      call map_mr_intermesh(nuc_sol_su, nuc_sol_su_aero, rho_coarse, rho)
-      call map_mr_intermesh(nuc_sol_om, nuc_sol_om_aero, rho_coarse, rho)
-      call map_mr_intermesh(n_ait_sol, n_ait_sol_aero, rho_coarse, rho)
-      call map_mr_intermesh(ait_sol_su, ait_sol_su_aero, rho_coarse, rho)
-      call map_mr_intermesh(ait_sol_bc, ait_sol_bc_aero, rho_coarse, rho)
-      call map_mr_intermesh(ait_sol_om, ait_sol_om_aero, rho_coarse, rho)
-      call map_mr_intermesh(n_acc_sol, n_acc_sol_aero, rho_coarse, rho)
-      call map_mr_intermesh(acc_sol_su, acc_sol_su_aero, rho_coarse, rho)
-      call map_mr_intermesh(acc_sol_bc, acc_sol_bc_aero, rho_coarse, rho)
-      call map_mr_intermesh(acc_sol_om, acc_sol_om_aero, rho_coarse, rho)
-      call map_mr_intermesh(acc_sol_ss, acc_sol_ss_aero, rho_coarse, rho)
-      call map_mr_intermesh(n_cor_sol, n_cor_sol_aero, rho_coarse, rho)
-      call map_mr_intermesh(cor_sol_su, cor_sol_su_aero, rho_coarse, rho)
-      call map_mr_intermesh(cor_sol_bc, cor_sol_bc_aero, rho_coarse, rho)
-      call map_mr_intermesh(cor_sol_om, cor_sol_om_aero, rho_coarse, rho)
-      call map_mr_intermesh(cor_sol_ss, cor_sol_ss_aero, rho_coarse, rho)
-      call map_mr_intermesh(n_ait_ins, n_ait_ins_aero, rho_coarse, rho)
-      call map_mr_intermesh(ait_ins_bc, ait_ins_bc_aero, rho_coarse, rho)
-      call map_mr_intermesh(ait_ins_om, ait_ins_om_aero, rho_coarse, rho)
-      call map_mr_intermesh(tnuc, tnuc_aero, rho_coarse, rho)
-      call map_mr_intermesh(tnuc_nlcl, tnuc_nlcl_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_nuc_sol, n_nuc_sol_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, nuc_sol_su, nuc_sol_su_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, nuc_sol_om, nuc_sol_om_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_ait_sol, n_ait_sol_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ait_sol_su, ait_sol_su_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ait_sol_bc, ait_sol_bc_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ait_sol_om, ait_sol_om_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_acc_sol, n_acc_sol_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, acc_sol_su, acc_sol_su_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, acc_sol_bc, acc_sol_bc_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, acc_sol_om, acc_sol_om_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, acc_sol_ss, acc_sol_ss_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_cor_sol, n_cor_sol_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cor_sol_su, cor_sol_su_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cor_sol_bc, cor_sol_bc_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cor_sol_om, cor_sol_om_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, cor_sol_ss, cor_sol_ss_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, n_ait_ins, n_ait_ins_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ait_ins_bc, ait_ins_bc_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, ait_ins_om, ait_ins_om_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, tnuc, tnuc_aero, rho_coarse, rho)
+      call map_mr_intermesh(config, tnuc_nlcl, tnuc_nlcl_aero, rho_coarse, rho)
  	  end if
-    if ( subroutine_timers ) call timer("conv_gr_alg")
+
+    ! Switch UM back to columns
+    call um_sizes_init(1_i_def)
+
+    ! Map the wind increments back to w2 space
+    call w_in_wth%copy_field_properties(dw_conv)
+    call invoke(setval_c(dw_conv, 0.0_r_def) )
+    call set_wind(config, du_conv_w2, du_conv, dv_conv, dw_conv)
+    call dw_conv%field_final()
+
+    if ( LPROF ) call stop_timing( id, 'convection.gr' )
 
     ! output diagnostics on last iteration only
     if (write_diag .and. use_xios_io .and. outer == outer_iterations) then
