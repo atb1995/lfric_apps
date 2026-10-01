@@ -7,7 +7,7 @@
 !>
 module time_dimensions_mod
 
-  use constants_mod,             only: i_def, l_def, str_def, cmdi
+  use constants_mod,             only: i_def, l_def, str_def, str_max_filename, cmdi
   use log_mod,                   only: log_event,                             &
                                        log_scratch_space,                     &
                                        log_level_error
@@ -17,7 +17,8 @@ module time_dimensions_mod
   !
   use initialization_config_mod, only: ancil_option,                          &
                                        ancil_option_fixed,                    &
-                                       ancil_option_updating
+                                       ancil_option_updating,                 &
+                                       coarse_aerosol_ancil
 #endif
   use initialization_config_mod, only: lbc_option,                            &
                                        lbc_option_gungho_file,                &
@@ -27,6 +28,7 @@ module time_dimensions_mod
   ! in the middle of a syntactic unit.
   !
   use files_config_mod,          only: ancil_dir => ancil_directory,          &
+                                       coarse_ancil_directory,                &
                                        sst_ancil_path,                        &
                                        emiss_bc_biofuel_ancil_path,           &
                                        emiss_bc_fossil_ancil_path,            &
@@ -55,6 +57,7 @@ module time_dimensions_mod
                                        glomap_mode_ukca
   use chemistry_config_mod,      only: chem_scheme, chem_scheme_strattrop,    &
                                        chem_scheme_strat_test
+  use multires_coupling_config_mod, only: coarse_rad_aerosol
 #endif
   implicit none
 
@@ -217,23 +220,32 @@ module time_dimensions_mod
   function get_emiss_dim() result(tdim)
     implicit none
     integer(i_def) :: tdim
+#ifdef UM_PHYSICS
+    character(str_max_filename) :: emiss_dir
+#endif
     tdim = 0
 #ifdef UM_PHYSICS
+    if (coarse_aerosol_ancil .or. coarse_rad_aerosol) then
+      emiss_dir = coarse_ancil_directory
+    else
+      emiss_dir = ancil_dir
+    end if
+
     ! conditions and list of emiss files from gungho_setup_io_mod;
     ! to be safe, we try them all in sequence
     if (glomap_mode == glomap_mode_ukca   .and.                               &
         ancil_option == ancil_option_updating) then
 
-      if (get_ancil_dim(ancil_dir, emiss_bc_biofuel_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_bc_fossil_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_bc_biomass_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_bc_biomass_hi_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_bc_biomass_lo_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_om_biofuel_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_om_fossil_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_om_biomass_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_so2_low_ancil_path, tdim)) return
-      if (get_ancil_dim(ancil_dir, emiss_so2_high_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_bc_biofuel_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_bc_fossil_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_bc_biomass_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_bc_biomass_hi_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_bc_biomass_lo_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_om_biofuel_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_om_fossil_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_om_biomass_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_so2_low_ancil_path, tdim)) return
+      if (get_ancil_dim(emiss_dir, emiss_so2_high_ancil_path, tdim)) return
 
     end if
 #endif

@@ -125,6 +125,7 @@ module gungho_setup_io_mod
                                        coarse_ozone_ancil,        &
                                        snow_source,               &
                                        snow_source_surf
+  use multires_coupling_config_mod, only: coarse_rad_aerosol
   use io_config_mod,             only: use_xios_io,               &
                                        diagnostic_frequency,      &
                                        checkpoint_write,          &
@@ -465,7 +466,7 @@ module gungho_setup_io_mod
              ( glomap_mode == glomap_mode_climatology   ) ) then
 
           ! Set aerosol ancil filename from namelist
-          if ( coarse_aerosol_ancil ) then
+          if ( coarse_aerosol_ancil .or. coarse_rad_aerosol ) then
             aerosol_ancil_directory = coarse_ancil_directory
           else
             aerosol_ancil_directory = ancil_directory
@@ -485,7 +486,7 @@ module gungho_setup_io_mod
     if ( (chem_scheme == chem_scheme_strattrop    .or.        &
           chem_scheme == chem_scheme_strat_test)   .and.     &
          ancil_option == ancil_option_updating ) then
-      if ( coarse_aerosol_ancil ) then
+      if ( coarse_aerosol_ancil .or. coarse_rad_aerosol ) then
         emiss_ancil_directory = coarse_ancil_directory
       else
         emiss_ancil_directory = ancil_directory
@@ -567,7 +568,7 @@ module gungho_setup_io_mod
 
     if ( glomap_mode == glomap_mode_ukca   .and.            &
          ancil_option == ancil_option_updating ) then
-      if ( coarse_aerosol_ancil ) then
+      if ( coarse_aerosol_ancil .or. coarse_rad_aerosol ) then
         emiss_ancil_directory = coarse_ancil_directory
       else
         emiss_ancil_directory = ancil_directory
@@ -575,12 +576,14 @@ module gungho_setup_io_mod
       ! Set aerosol emission ancil filenames from namelist
       write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_bc_biofuel_ancil_path)
+      call log_registered_ancil("emiss_bc_biofuel_ancil", ancil_fname)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                          xios_id="emiss_bc_biofuel_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
       write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_bc_fossil_ancil_path)
+      call log_registered_ancil("emiss_bc_fossil_ancil", ancil_fname)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                     &
                                                          xios_id="emiss_bc_fossil_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
@@ -588,18 +591,21 @@ module gungho_setup_io_mod
       if (emissions == emissions_GC3) then
         write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_bc_biomass_ancil_path)
+        call log_registered_ancil("emiss_bc_biomass_ancil", ancil_fname)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                            xios_id="emiss_bc_biomass_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
       else if (emissions == emissions_GC5) then
         write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_bc_biomass_hi_ancil_path)
+        call log_registered_ancil("emiss_bc_biomass_hi_ancil", ancil_fname)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                         &
                                                            xios_id="emiss_bc_biomass_hi_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
 
         write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_bc_biomass_lo_ancil_path)
+        call log_registered_ancil("emiss_bc_biomass_lo_ancil", ancil_fname)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                         &
                                                            xios_id="emiss_bc_biomass_lo_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
@@ -607,30 +613,35 @@ module gungho_setup_io_mod
 
       write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_dms_land_ancil_path)
+      call log_registered_ancil("emiss_dms_land_ancil", ancil_fname)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                    &
                                                          xios_id="emiss_dms_land_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
       write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(dms_conc_ocean_ancil_path)
+      call log_registered_ancil("dms_conc_ocean_ancil", ancil_fname)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                    &
                                                          xios_id="dms_conc_ocean_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
       write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_monoterp_ancil_path)
+      call log_registered_ancil("emiss_monoterp_ancil", ancil_fname)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                    &
                                                          xios_id="emiss_monoterp_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
       write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_om_biofuel_ancil_path)
+      call log_registered_ancil("emiss_om_biofuel_ancil", ancil_fname)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                          xios_id="emiss_om_biofuel_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
 
       write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_om_fossil_ancil_path)
+      call log_registered_ancil("emiss_om_fossil_ancil", ancil_fname)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                     &
                                                          xios_id="emiss_om_fossil_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
@@ -638,18 +649,21 @@ module gungho_setup_io_mod
       if (emissions == emissions_GC3) then
         write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_om_biomass_ancil_path)
+        call log_registered_ancil("emiss_om_biomass_ancil", ancil_fname)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                      &
                                                            xios_id="emiss_om_biomass_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
       else if (emissions == emissions_GC5) then
         write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_om_biomass_hi_ancil_path)
+        call log_registered_ancil("emiss_om_biomass_hi_ancil", ancil_fname)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                         &
                                                            xios_id="emiss_om_biomass_hi_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
 
         write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_om_biomass_lo_ancil_path)
+        call log_registered_ancil("emiss_om_biomass_lo_ancil", ancil_fname)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                         &
                                                            xios_id="emiss_om_biomass_lo_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
@@ -657,6 +671,7 @@ module gungho_setup_io_mod
 
       write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                trim(emiss_so2_low_ancil_path)
+      call log_registered_ancil("emiss_so2_low_ancil", ancil_fname)
       call files_list%insert_item( lfric_xios_file_type( ancil_fname,                   &
                                                          xios_id="emiss_so2_low_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
@@ -664,6 +679,7 @@ module gungho_setup_io_mod
       if (emissions == emissions_GC3) then
         write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_so2_high_ancil_path)
+        call log_registered_ancil("emiss_so2_high_ancil", ancil_fname)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,                    &
                                                            xios_id="emiss_so2_high_ancil", &
                                                            io_mode=FILE_MODE_READ ) )
@@ -674,6 +690,7 @@ module gungho_setup_io_mod
            .not. checkpoint_read) then
         write(ancil_fname,'(A)') trim(emiss_ancil_directory)//'/'// &
                                  trim(emiss_so2_nat_ancil_path)
+        call log_registered_ancil("emiss_so2_nat_ancil", ancil_fname)
         call files_list%insert_item( lfric_xios_file_type( ancil_fname,        &
                                                          xios_id="emiss_so2_nat_ancil", &
                                                          io_mode=FILE_MODE_READ ) )
@@ -939,5 +956,19 @@ module gungho_setup_io_mod
     end if
 
   end subroutine init_gungho_files
+
+  !> @brief Emit resolved ancillary registration details for diagnostics.
+  subroutine log_registered_ancil(xios_id, full_path)
+
+    implicit none
+
+    character(*), intent(in) :: xios_id
+    character(*), intent(in) :: full_path
+
+    write(log_scratch_space,'(5A)') 'Register ancil: xios_id=', trim(xios_id), &
+                                    ', path=', trim(full_path)
+    call log_event(log_scratch_space, log_level_info)
+
+  end subroutine log_registered_ancil
 
 end module gungho_setup_io_mod
