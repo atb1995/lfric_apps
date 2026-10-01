@@ -294,9 +294,9 @@
 
   <file id="soil_dust_ancil" name="soil_dust_ancil" mode="read" output_freq="1ts" convention="UGRID" cyclic="false" enabled=".FALSE.">
    <field_group id="soil_dust_ancil_field_group" >
-    <field id="soil_clay" name="volume_fraction_of_clay_in_soil" long_name="volume_fraction_of_clay_in_soil" unit="m3 m-3" operation="once" grid_ref="var_face"/>
-    <field id="soil_sand" name="volume_fraction_of_sand_in_soil" long_name="volume_fraction_of_sand_in_soil" unit="m3 m-3" operation="once" grid_ref="var_face"/>
-    <field id="dust_mrel" name="mass_fraction_of_dust_in_size_bins" long_name="mass_fraction_of_dust_in_size_bins" unit="kg kg-1" operation="once" grid_ref="var_face_dust" />
+    <field id="soil_clay" name="volume_fraction_of_clay_in_soil" long_name="volume_fraction_of_clay_in_soil" unit="m3 m-3" operation="once" domain_ref="face"/>
+    <field id="soil_sand" name="volume_fraction_of_sand_in_soil" long_name="volume_fraction_of_sand_in_soil" unit="m3 m-3" operation="once" domain_ref="face"/>
+    <field id="dust_mrel" name="mass_fraction_of_dust_in_size_bins" long_name="mass_fraction_of_dust_in_size_bins" unit="kg kg-1" operation="once" domain_ref="face" axis_ref="dust_divisions" />
    </field_group>
   </file>
 

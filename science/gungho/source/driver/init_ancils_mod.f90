@@ -487,122 +487,161 @@ contains
     if ( glomap_mode == glomap_mode_ukca   .and.                         &
          ancil_option == ancil_option_updating )  then
       ! -- Single level ancils
+      call log_emiss_setup("emiss_bc_biofuel", "emiss_bc_biofuel_ancil")
       call em_bc_bf_time_axis%initialise("em_bc_bf_time",                &
                                        file_id="emiss_bc_biofuel_ancil", &
                                        interp_flag=interp_flag,          &
                                        pop_freq="daily")
       call setup_ancil_field("emiss_bc_biofuel", depository, ancil_fields,   &
                            mesh, twod_mesh, twod=.true.,               &
-                           time_axis=em_bc_bf_time_axis)
+                           time_axis=em_bc_bf_time_axis,               &
+                           alt_mesh=aerosol_mesh,                      &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_bc_bf_time_axis)
 
+      call log_emiss_setup("emiss_bc_fossil", "emiss_bc_fossil_ancil")
       call em_bc_ff_time_axis%initialise("em_bc_ff_time",                &
                                        file_id="emiss_bc_fossil_ancil",  &
                                        interp_flag=interp_flag,          &
                                        pop_freq="daily")
       call setup_ancil_field("emiss_bc_fossil", depository, ancil_fields,    &
                            mesh, twod_mesh, twod=.true.,               &
-                           time_axis=em_bc_ff_time_axis)
+                           time_axis=em_bc_ff_time_axis,               &
+                           alt_mesh=aerosol_mesh,                      &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_bc_ff_time_axis)
 
+      call log_emiss_setup("emiss_dms_land", "emiss_dms_land_ancil")
       call em_dms_lnd_time_axis%initialise("em_dms_lnd_time",              &
                                          file_id="emiss_dms_land_ancil",   &
                                          interp_flag=interp_flag,          &
                                          pop_freq="daily")
       call setup_ancil_field("emiss_dms_land", depository, ancil_fields,     &
                            mesh, twod_mesh, twod=.true.,               &
-                           time_axis=em_dms_lnd_time_axis)
+                           time_axis=em_dms_lnd_time_axis,              &
+                           alt_mesh=aerosol_mesh,                      &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_dms_lnd_time_axis)
 
+      call log_emiss_setup("dms_conc_ocean", "dms_conc_ocean_ancil")
       call dms_ocn_time_axis%initialise("dms_ocn_time",                 &
                                       file_id="dms_conc_ocean_ancil",   &
                                       interp_flag=interp_flag,          &
                                       pop_freq="daily")
       call setup_ancil_field("dms_conc_ocean", depository, ancil_fields,     &
                            mesh, twod_mesh, twod=.true.,               &
-                           time_axis=dms_ocn_time_axis)
+                           time_axis=dms_ocn_time_axis,                 &
+                           alt_mesh=aerosol_mesh,                      &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(dms_ocn_time_axis)
 
+      call log_emiss_setup("emiss_monoterp", "emiss_monoterp_ancil")
       call em_mterp_time_axis%initialise("em_mterp_time",               &
                                        file_id="emiss_monoterp_ancil",  &
                                        interp_flag=interp_flag,         &
                                        pop_freq="daily")
       call setup_ancil_field("emiss_monoterp", depository, ancil_fields,     &
                            mesh, twod_mesh, twod=.true.,               &
-                           time_axis=em_mterp_time_axis)
+                           time_axis=em_mterp_time_axis,                &
+                           alt_mesh=aerosol_mesh,                      &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_mterp_time_axis)
 
+      call log_emiss_setup("emiss_om_biofuel", "emiss_om_biofuel_ancil")
       call em_om_bf_time_axis%initialise("em_om_bf_time",                &
                                        file_id="emiss_om_biofuel_ancil", &
                                        interp_flag=interp_flag,          &
                                        pop_freq="daily")
       call setup_ancil_field("emiss_om_biofuel", depository, ancil_fields,   &
                            mesh, twod_mesh, twod=.true.,               &
-                           time_axis=em_om_bf_time_axis)
+                           time_axis=em_om_bf_time_axis,                &
+                           alt_mesh=aerosol_mesh,                      &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_om_bf_time_axis)
 
+      call log_emiss_setup("emiss_om_fossil", "emiss_om_fossil_ancil")
       call em_om_ff_time_axis%initialise("em_om_ff_time",                &
                                        file_id="emiss_om_fossil_ancil",  &
                                        interp_flag=interp_flag,          &
                                        pop_freq="daily")
       call setup_ancil_field("emiss_om_fossil", depository, ancil_fields,   &
                            mesh, twod_mesh, twod=.true.,              &
-                           time_axis=em_om_ff_time_axis)
+                           time_axis=em_om_ff_time_axis,               &
+                           alt_mesh=aerosol_mesh,                      &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_om_ff_time_axis)
 
+      call log_emiss_setup("emiss_so2_low", "emiss_so2_low_ancil")
       call em_so2_lo_time_axis%initialise("em_so2_lo_time",              &
                                         file_id="emiss_so2_low_ancil",   &
                                         interp_flag=interp_flag,         &
                                         pop_freq="daily")
       call setup_ancil_field("emiss_so2_low", depository, ancil_fields,     &
                            mesh, twod_mesh, twod=.true.,              &
-                           time_axis=em_so2_lo_time_axis)
+                           time_axis=em_so2_lo_time_axis,              &
+                           alt_mesh=aerosol_mesh,                      &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_so2_lo_time_axis)
 
       if (emissions == emissions_GC3) then
+        call log_emiss_setup("emiss_so2_high", "emiss_so2_high_ancil")
         call em_so2_hi_time_axis%initialise("em_so2_hi_time",              &
                                           file_id="emiss_so2_high_ancil",  &
                                           interp_flag=interp_flag,         &
                                           pop_freq="daily")
         call setup_ancil_field("emiss_so2_high", depository, ancil_fields,  &
                                  mesh, twod_mesh, twod=.true.,              &
-                                 time_axis=em_so2_hi_time_axis)
+                                 time_axis=em_so2_hi_time_axis,            &
+                                 alt_mesh=aerosol_mesh,                    &
+                                 alt_twod_mesh=aerosol_twod_mesh)
         call ancil_times_list%insert_item(em_so2_hi_time_axis)
       else if (emissions == emissions_GC5) then
+        call log_emiss_setup("emiss_bc_biomass_high", "emiss_bc_biomass_hi_ancil")
         call em_bc_bb_hi_time_axis%initialise("em_bc_bb_hi_time",             &
                                          file_id="emiss_bc_biomass_hi_ancil", &
                                          interp_flag=interp_flag,             &
                                          pop_freq="daily")
         call setup_ancil_field("emiss_bc_biomass_high", depository, ancil_fields,&
                              mesh, twod_mesh, twod=.true.,                       &
-                             time_axis=em_bc_bb_hi_time_axis)
+                             time_axis=em_bc_bb_hi_time_axis,                    &
+                             alt_mesh=aerosol_mesh,                              &
+                             alt_twod_mesh=aerosol_twod_mesh)
         call ancil_times_list%insert_item(em_bc_bb_hi_time_axis)
 
+        call log_emiss_setup("emiss_bc_biomass_low", "emiss_bc_biomass_lo_ancil")
         call em_bc_bb_lo_time_axis%initialise("em_bc_bb_lo_time",             &
                                          file_id="emiss_bc_biomass_lo_ancil", &
                                          interp_flag=interp_flag,             &
                                          pop_freq="daily")
         call setup_ancil_field("emiss_bc_biomass_low", depository, ancil_fields, &
                              mesh, twod_mesh, twod=.true.,                       &
-                             time_axis=em_bc_bb_lo_time_axis)
+                             time_axis=em_bc_bb_lo_time_axis,                    &
+                             alt_mesh=aerosol_mesh,                              &
+                             alt_twod_mesh=aerosol_twod_mesh)
         call ancil_times_list%insert_item(em_bc_bb_lo_time_axis)
 
+        call log_emiss_setup("emiss_om_biomass_high", "emiss_om_biomass_hi_ancil")
         call em_om_bb_hi_time_axis%initialise("em_om_bb_hi_time",             &
                                          file_id="emiss_om_biomass_hi_ancil", &
                                          interp_flag=interp_flag,             &
                                          pop_freq="daily")
         call setup_ancil_field("emiss_om_biomass_high", depository, ancil_fields,&
                              mesh, twod_mesh, twod=.true.,                       &
-                             time_axis=em_om_bb_hi_time_axis)
+                             time_axis=em_om_bb_hi_time_axis,                    &
+                             alt_mesh=aerosol_mesh,                              &
+                             alt_twod_mesh=aerosol_twod_mesh)
         call ancil_times_list%insert_item(em_om_bb_hi_time_axis)
 
+        call log_emiss_setup("emiss_om_biomass_low", "emiss_om_biomass_lo_ancil")
         call em_om_bb_lo_time_axis%initialise("em_om_bb_lo_time",             &
                                          file_id="emiss_om_biomass_lo_ancil", &
                                          interp_flag=interp_flag,             &
                                          pop_freq="daily")
         call setup_ancil_field("emiss_om_biomass_low", depository, ancil_fields, &
                              mesh, twod_mesh, twod=.true.,                       &
-                             time_axis=em_om_bb_lo_time_axis)
+                             time_axis=em_om_bb_lo_time_axis,                    &
+                             alt_mesh=aerosol_mesh,                              &
+                             alt_twod_mesh=aerosol_twod_mesh)
         call ancil_times_list%insert_item(em_om_bb_lo_time_axis)
       end if ! GC3 or GC5
 
@@ -611,7 +650,7 @@ contains
       if (init_option == init_option_fd_start_dump .and. &
            .not. checkpoint_read) then
         call setup_ancil_field("emiss_so2_nat", depository, ancil_fields,     &
-                               mesh, twod_mesh)
+                               mesh, twod_mesh, alt_mesh=aerosol_mesh)
       end if
 
       if (emissions == emissions_GC3) then
@@ -621,7 +660,9 @@ contains
                                          pop_freq="daily")
         call setup_ancil_field("emiss_bc_biomass", depository, ancil_fields,  &
                                 mesh, twod_mesh,                              &
-                                time_axis=em_bc_bb_time_axis)   ! 3-D
+                                time_axis=em_bc_bb_time_axis,                 &
+                                alt_mesh=aerosol_mesh,                        &
+                                alt_twod_mesh=aerosol_twod_mesh)   ! 3-D
         call ancil_times_list%insert_item(em_bc_bb_time_axis)
 
         call em_om_bb_time_axis%initialise("em_om_bb_time",                &
@@ -630,7 +671,9 @@ contains
                                          pop_freq="daily")
         call setup_ancil_field("emiss_om_biomass", depository, ancil_fields,  &
                                 mesh, twod_mesh,                              &
-                                time_axis=em_om_bb_time_axis)
+                                time_axis=em_om_bb_time_axis,                 &
+                                alt_mesh=aerosol_mesh,                        &
+                                alt_twod_mesh=aerosol_twod_mesh)
         call ancil_times_list%insert_item(em_om_bb_time_axis)
       end if
 
@@ -642,35 +685,45 @@ contains
                                          pop_freq="daily")
       call setup_ancil_field("h2o2_limit", depository, ancil_fields,        &
                            mesh, twod_mesh,                           &
-                           time_axis=h2o2_limit_time_axis)
+                           time_axis=h2o2_limit_time_axis,            &
+                           alt_mesh=aerosol_mesh,                     &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(h2o2_limit_time_axis)
 
       call ho2_time_axis%initialise("ho2_time", file_id="ho2_ancil", &
                                     interp_flag=interp_flag,         &
                                     pop_freq="daily")
       call setup_ancil_field("ho2", depository, ancil_fields,               &
-                           mesh, twod_mesh, time_axis=ho2_time_axis)
+                           mesh, twod_mesh, time_axis=ho2_time_axis,  &
+                           alt_mesh=aerosol_mesh,                     &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(ho2_time_axis)
 
       call no3_time_axis%initialise("no3_time", file_id="no3_ancil", &
                                     interp_flag=interp_flag,         &
                                     pop_freq="daily")
       call setup_ancil_field("no3", depository, ancil_fields,               &
-                           mesh, twod_mesh, time_axis=no3_time_axis)
+                           mesh, twod_mesh, time_axis=no3_time_axis,  &
+                           alt_mesh=aerosol_mesh,                     &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(no3_time_axis)
 
       call o3_time_axis%initialise("o3_time", file_id="o3_ancil",    &
                                    interp_flag=interp_flag,          &
                                    pop_freq="daily")
       call setup_ancil_field("o3", depository, ancil_fields,                &
-                           mesh, twod_mesh, time_axis=o3_time_axis)
+                           mesh, twod_mesh, time_axis=o3_time_axis,   &
+                           alt_mesh=aerosol_mesh,                     &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(o3_time_axis)
 
       call oh_time_axis%initialise("oh_time", file_id="oh_ancil",    &
                                    interp_flag=interp_flag,          &
                                    pop_freq="daily")
       call setup_ancil_field("oh", depository, ancil_fields,                &
-                           mesh, twod_mesh, time_axis=oh_time_axis)
+                           mesh, twod_mesh, time_axis=oh_time_axis,   &
+                           alt_mesh=aerosol_mesh,                     &
+                           alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(oh_time_axis)
 
 
@@ -770,7 +823,9 @@ contains
                                         pop_freq="daily")
       call setup_ancil_field("emiss_c2h6", depository, ancil_fields, &
                              mesh, twod_mesh, twod=.true.,           &
-                             time_axis=em_c2h6_time_axis)
+                             time_axis=em_c2h6_time_axis,            &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_c2h6_time_axis)
 
       call em_c3h8_time_axis%initialise("em_c3h8_time",              &
@@ -779,7 +834,9 @@ contains
                                         pop_freq="daily")
       call setup_ancil_field("emiss_c3h8", depository, ancil_fields, &
                              mesh, twod_mesh, twod=.true.,           &
-                             time_axis=em_c3h8_time_axis)
+                             time_axis=em_c3h8_time_axis,            &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_c3h8_time_axis)
 
       call em_c5h8_time_axis%initialise("em_c5h8_time",              &
@@ -788,7 +845,9 @@ contains
                                         pop_freq="daily")
       call setup_ancil_field("emiss_c5h8", depository, ancil_fields, &
                              mesh, twod_mesh, twod=.true.,           &
-                             time_axis=em_c5h8_time_axis)
+                             time_axis=em_c5h8_time_axis,            &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_c5h8_time_axis)
 
       call em_ch4_time_axis%initialise("em_ch4_time",                &
@@ -797,7 +856,9 @@ contains
                                        pop_freq="daily")
       call setup_ancil_field("emiss_ch4", depository, ancil_fields,  &
                              mesh, twod_mesh, twod=.true.,           &
-                             time_axis=em_ch4_time_axis)
+                             time_axis=em_ch4_time_axis,             &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_ch4_time_axis)
 
       call em_co_time_axis%initialise("em_co_time",                  &
@@ -806,7 +867,9 @@ contains
                                       pop_freq="daily")
       call setup_ancil_field("emiss_co", depository, ancil_fields,   &
                              mesh, twod_mesh, twod=.true.,           &
-                            time_axis=em_co_time_axis)
+                             time_axis=em_co_time_axis,              &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_co_time_axis)
 
       call em_hcho_time_axis%initialise("em_hcho_time",              &
@@ -815,7 +878,9 @@ contains
                                        pop_freq="daily")
       call setup_ancil_field("emiss_hcho", depository, ancil_fields, &
                              mesh, twod_mesh, twod=.true.,           &
-                             time_axis=em_hcho_time_axis)
+                             time_axis=em_hcho_time_axis,            &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_hcho_time_axis)
 
       call em_me2co_time_axis%initialise("em_me2co_time",            &
@@ -824,7 +889,9 @@ contains
                                         pop_freq="daily")
       call setup_ancil_field("emiss_me2co", depository, ancil_fields, &
                              mesh, twod_mesh, twod=.true.,            &
-                             time_axis=em_me2co_time_axis)
+                             time_axis=em_me2co_time_axis,            &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_me2co_time_axis)
 
       call em_mecho_time_axis%initialise("em_mecho_time",             &
@@ -833,7 +900,9 @@ contains
                                          pop_freq="daily")
       call setup_ancil_field("emiss_mecho", depository, ancil_fields, &
                              mesh, twod_mesh, twod=.true.,            &
-                             time_axis=em_mecho_time_axis)
+                             time_axis=em_mecho_time_axis,            &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_mecho_time_axis)
 
       call em_nh3_time_axis%initialise("em_nh3_time",                 &
@@ -842,7 +911,9 @@ contains
                                        pop_freq="daily")
       call setup_ancil_field("emiss_nh3", depository, ancil_fields,   &
                              mesh, twod_mesh, twod=.true.,            &
-                             time_axis=em_nh3_time_axis)
+                             time_axis=em_nh3_time_axis,              &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_nh3_time_axis)
 
       call em_no_time_axis%initialise("em_no_time", file_id="emiss_no_ancil",  &
@@ -850,7 +921,9 @@ contains
                                      pop_freq="daily")
       call setup_ancil_field("emiss_no", depository, ancil_fields,    &
                              mesh, twod_mesh, twod=.true.,            &
-                             time_axis=em_no_time_axis)
+                             time_axis=em_no_time_axis,               &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_no_time_axis)
 
       call em_meoh_time_axis%initialise("em_meoh_time",               &
@@ -859,7 +932,9 @@ contains
                                        pop_freq="daily")
       call setup_ancil_field("emiss_meoh", depository, ancil_fields,  &
                              mesh, twod_mesh, twod=.true.,            &
-                             time_axis=em_meoh_time_axis)
+                             time_axis=em_meoh_time_axis,             &
+                             alt_mesh=aerosol_mesh,                  &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_meoh_time_axis)
 
       call em_no_aircrft_time_axis%initialise("em_no_aircrft_time",    &
@@ -868,12 +943,25 @@ contains
                                               pop_freq="daily")
       call setup_ancil_field("emiss_no_aircrft", depository, ancil_fields, &
                              mesh, twod_mesh,                              &
-                             time_axis=em_no_aircrft_time_axis)
+                             time_axis=em_no_aircrft_time_axis,            &
+                             alt_mesh=aerosol_mesh,                        &
+                             alt_twod_mesh=aerosol_twod_mesh)
       call ancil_times_list%insert_item(em_no_aircrft_time_axis)
 
     endif  ! if chem_scheme_strattrop/ strat_test
 
   end subroutine create_fd_ancils
+
+  !> @brief Emit a targeted log message when setting up a time-varying emissions field.
+  subroutine log_emiss_setup(field_name, file_id)
+    implicit none
+    character(*), intent(in) :: field_name
+    character(*), intent(in) :: file_id
+
+    write(log_scratch_space,'(5A)') 'Emissions setup: field=', trim(field_name), &
+                                    ', file_id=', trim(file_id)
+    call log_event(log_scratch_space, LOG_LEVEL_INFO)
+  end subroutine log_emiss_setup
 
 
   !> @details Organises fields to be read from ancils into ancil_fields
@@ -996,8 +1084,12 @@ contains
   !> @param[in, optional] ndata Number of non-spatial dimensions for multi-data
   !>                            field
   !> @param[in, out, optional] time_axis Time axis associated with ancil field
-  !> @param[in, optional] alt_mesh      Alternative 3d mesh for time axis fields
-  !> @param[in, optional] alt_twod_mesh Alternative 2d mesh for time axis fields
+  !> @param[in, optional] alt_mesh      Alternative 3d mesh. Used for the raw
+  !>                                    data field of time axis fields, or for
+  !>                                    the field itself if there is no time axis
+  !> @param[in, optional] alt_twod_mesh Alternative 2d mesh. Used for the raw
+  !>                                    data field of time axis fields, or for
+  !>                                    the field itself if there is no time axis
   subroutine setup_ancil_field( name, depository, ancil_fields, mesh, &
                                 twod_mesh, twod, ndata, ndata_first,  &
                                 time_axis, alt_mesh, alt_twod_mesh  )
@@ -1055,13 +1147,25 @@ contains
       call log_event(log_scratch_space,LOG_LEVEL_INFO)
       tmp_write_ptr => write_field_generic
       if (twod_field) then
-        vec_space => function_space_collection%get_fs( twod_mesh, fs_order_h, &
-                                                       fs_order_v,            &
-                                                       W3, ndat )
+        if ( .not. present(time_axis) .and. present(alt_twod_mesh) ) then
+          vec_space => function_space_collection%get_fs( alt_twod_mesh, fs_order_h, &
+                                                         fs_order_v,                &
+                                                         W3, ndat )
+        else
+          vec_space => function_space_collection%get_fs( twod_mesh, fs_order_h, &
+                                                         fs_order_v,            &
+                                                         W3, ndat )
+        end if
       else
-        vec_space => function_space_collection%get_fs( mesh, fs_order_h, &
-                                                       fs_order_v,       &
-                                                       WTheta, ndat )
+        if ( .not. present(time_axis) .and. present(alt_mesh) ) then
+          vec_space => function_space_collection%get_fs( alt_mesh, fs_order_h, &
+                                                         fs_order_v,          &
+                                                         WTheta, ndat )
+        else
+          vec_space => function_space_collection%get_fs( mesh, fs_order_h, &
+                                                         fs_order_v,       &
+                                                         WTheta, ndat )
+        end if
       end if
       call new_field%initialise( vec_space, name=trim(name))
       call new_field%set_write_behaviour(tmp_write_ptr)
@@ -1121,6 +1225,10 @@ contains
     call depository%get_field(name, fld_ptr)
     abs_fld_ptr => fld_ptr
     call ancil_fields%add_reference_to_field(abs_fld_ptr)
+
+     write(log_scratch_space,'(3A)') 'Ancil setup complete: field=', trim(name), &
+                                      ', added to ancil_fields'
+     call log_event(log_scratch_space, LOG_LEVEL_INFO)
 
     ! Nullify pointers
     nullify(vec_space)

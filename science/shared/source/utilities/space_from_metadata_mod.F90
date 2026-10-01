@@ -178,7 +178,11 @@ contains
         grid_ref // ' ' // domain_ref
         call log_event(log_scratch_space, log_level_error)
       end if
-      if (axis_ref /= "") then
+      if (grid_ref == var_face) then
+        ! var_face is a 2D (planar) surface field, not a 3D field, even
+        ! though it is encoded via grid_ref rather than domain_ref
+        flavour = planar
+      else if (axis_ref /= "") then
         flavour = vanilla_multi
       else
         flavour = vanilla
@@ -328,8 +332,14 @@ contains
         ndata = get_ndata(axis_ref)
       end if
     case (planar)
-      ! scalar field on 2d mesh
-      ndata = 1
+      ! scalar field on 2d mesh, or multidata field on 2d mesh if an axis
+      ! was split off the grid_ref (e.g. var_face_dust, var_face_aod_wavel,
+      ! var_face_emiss)
+      if (axis_ref == "") then
+        ndata = 1
+      else
+        ndata = get_ndata(axis_ref)
+      end if
     case (vanilla )
       ! scalar field on 3d mesh
       ndata = 1

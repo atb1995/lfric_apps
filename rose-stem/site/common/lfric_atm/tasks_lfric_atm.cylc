@@ -604,6 +604,7 @@
         "crun_compare": false,
         "mpi_parts": 216,
         "log_level": "info",
+        "wallclock": 60,
         "plot_str": "plot_map.py -encorr $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
     }) %}
 

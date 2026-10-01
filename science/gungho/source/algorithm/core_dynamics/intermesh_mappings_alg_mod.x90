@@ -25,7 +25,7 @@ module intermesh_mappings_alg_mod
   use fs_continuity_mod,              only : W2, Wtheta, W3
   use integer_field_mod,              only : integer_field_type
   
-  use log_mod,                        only : log_event, LOG_LEVEL_ERROR, LOG_LEVEL_INFO
+  use log_mod,                        only : log_event, log_scratch_space, LOG_LEVEL_ERROR, LOG_LEVEL_INFO
   use sci_field_minmax_alg_mod,       only: log_field_minmax
   use mesh_collection_mod,            only : mesh_collection
   use mesh_mod,                       only : mesh_type
@@ -441,6 +441,7 @@ contains
     integer(kind=i_def)       :: ndata, nlayers
     integer(kind=i_def)       :: element_order_h
     integer(kind=i_def)       :: element_order_v
+    logical(kind=l_def)       :: lowest_order_flag_value
     type(function_space_type), pointer :: fs_type
     type(function_space_type), pointer :: fs_source_2d
 
@@ -464,6 +465,7 @@ contains
     ! Figure out which of the meshes has fewer cells
     source_ncells = source_mesh%get_ncells()
     target_ncells = target_mesh%get_ncells()
+    lowest_order_flag_value = .false.
 
     if ( source_ncells == target_ncells ) then
 
@@ -477,10 +479,27 @@ contains
       end if
 
     else
+      write(log_scratch_space, '(A,I0,A,I0,A,I0,A,I0,A,I0)')             &
+          'map_scalar_intermesh prolong branch: source_ncells=',          &
+          source_ncells, ', target_ncells=', target_ncells,               &
+          ', ndata=', ndata, ', recovery_order=', recovery_order,         &
+          ', reconstruction=', reconstruction
+      call log_event(log_scratch_space, LOG_LEVEL_INFO)
+
       recovery_order_arg = recovery_order
       if (present(lowest_order_flag)) then
+        lowest_order_flag_value = lowest_order_flag
         if (lowest_order_flag) recovery_order_arg = recovery_order_constant
       end if
+      write(log_scratch_space, '(A,L1,A,L1,A,L1,A,I0)')                 &
+          'map_scalar_intermesh prolong config: source_mask_present=',   &
+          present(source_mask),                                          &
+          ', lowest_order_flag_present=', present(lowest_order_flag),    &
+          ', lowest_order_flag_value=',                                  &
+          lowest_order_flag_value,                                       &
+          ', recovery_order_arg=', recovery_order_arg
+      call log_event(log_scratch_space, LOG_LEVEL_INFO)
+
       if (ndata > 1) then
         if (present(source_mask)) then
           call prolong_multidata_simple(target_field, source_field, source_mask, recovery_order_arg)

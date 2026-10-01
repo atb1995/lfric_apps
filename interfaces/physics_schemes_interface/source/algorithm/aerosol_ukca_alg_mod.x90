@@ -1375,8 +1375,15 @@ contains
                     setval_c(chloro_sea_coarse, 0.0_r_def) )
 
       ! Map Fields
-      call log_event( 'Mapping o3p', LOG_LEVEL_INFO )
-      call map_scalar_intermesh(o3p_coarse, o3p)
+      ! o3p is only populated when chem_scheme is strattrop/strat_test; for
+      ! other chem schemes it is an empty field, so mapping it would
+      ! propagate uninitialised data (manifesting as NaNs). Leave
+      ! o3p_coarse at the zero value set above in that case.
+      if ( chem_scheme == chem_scheme_strattrop .or.                           &
+           chem_scheme == chem_scheme_strat_test ) then
+        call log_event( 'Mapping o3p', LOG_LEVEL_INFO )
+        call map_scalar_intermesh(o3p_coarse, o3p)
+      end if
       
       call log_event( 'Mapping ls_rain_3d', LOG_LEVEL_INFO )
       call map_scalar_intermesh(ls_rain_3d_coarse, ls_rain_3d)
@@ -1476,6 +1483,10 @@ contains
       rhokh_bl_aero => rhokh_bl_coarse
       zhsc_aero => zhsc_coarse
       tke_bl_aero => tke_bl_coarse
+      soil_roughness_aero => soil_roughness_coarse
+      urbztm_aero => urbztm_coarse
+      wspd10m_aero => wspd10m_coarse
+      chloro_sea_aero => chloro_sea_coarse
 
     ! =================== Multidata Scalar W3 Fields ============================== !
       w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh, &
@@ -1540,6 +1551,18 @@ contains
       ent_zrzi_dsc_aero => ent_zrzi_dsc_coarse
       leaf_area_index_aero => leaf_area_index_coarse
       canopy_height_aero => canopy_height_coarse
+
+      w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh, &
+                                                                   0, 0, W3, &
+                                                                  get_ndata_val('soil_levels'))
+      call soil_moisture_coarse%initialise( w3_2d_multidata_coarse, 'soil_moisture_coarse')
+
+      call invoke( setval_c(soil_moisture_coarse, 0.0_r_def) )
+
+      call log_event( 'Mapping soil_moisture', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(soil_moisture_coarse, soil_moisture)
+
+      soil_moisture_aero => soil_moisture_coarse
 
       ! =================== Integer W3/WTHETA Fields ============================== !
 
@@ -2491,22 +2514,22 @@ contains
       !   call acc_ins_du_f%write_field('aerosol__acc_ins_du_fine')
       !   call n_cor_ins_f%write_field('aerosol__n_cor_ins_fine')
       !   call cor_ins_du_f%write_field('aerosol__cor_ins_du_fine')
-      if ( coarse_aerosol_ancil .and. .not. coarse_rad_aerosol ) then
-        call aerosol_fields%get_field('acc_ins_du_coarse', acc_ins_du_c)
-        call aerosol_fields%get_field('n_acc_ins_coarse', n_acc_ins_c)
-        call aerosol_fields%get_field('cor_ins_du_coarse', cor_ins_du_c)
-        call aerosol_fields%get_field('n_cor_ins_coarse', n_cor_ins_c)
+      ! if ( coarse_aerosol_ancil .or. coarse_rad_aerosol ) then
+      !   call aerosol_fields%get_field('acc_ins_du_coarse', acc_ins_du_c)
+      !   call aerosol_fields%get_field('n_acc_ins_coarse', n_acc_ins_c)
+      !   call aerosol_fields%get_field('cor_ins_du_coarse', cor_ins_du_c)
+      !   call aerosol_fields%get_field('n_cor_ins_coarse', n_cor_ins_c)
 
-        call map_scalar_intermesh(acc_ins_du_c, acc_ins_du)
-        call map_scalar_intermesh(n_acc_ins_c, n_acc_ins)
-        call map_scalar_intermesh(cor_ins_du_c, cor_ins_du)
-        call map_scalar_intermesh(n_cor_ins_c, n_cor_ins)
+      !   call map_scalar_intermesh(acc_ins_du_c, acc_ins_du)
+      !   call map_scalar_intermesh(n_acc_ins_c, n_acc_ins)
+      !   call map_scalar_intermesh(cor_ins_du_c, cor_ins_du)
+      !   call map_scalar_intermesh(n_cor_ins_c, n_cor_ins)
         
-        call n_acc_ins_c%write_field('aerosol__n_acc_ins_coarse')
-        call acc_ins_du_c%write_field('aerosol__acc_ins_du_coarse')
-        call n_cor_ins_c%write_field('aerosol__n_cor_ins_coarse')
-        call cor_ins_du_c%write_field('aerosol__cor_ins_du_coarse')
-      end if
+      !   call n_acc_ins_c%write_field('aerosol__n_acc_ins_coarse')
+      !   call acc_ins_du_c%write_field('aerosol__acc_ins_du_coarse')
+      !   call n_cor_ins_c%write_field('aerosol__n_cor_ins_coarse')
+      !   call cor_ins_du_c%write_field('aerosol__cor_ins_du_coarse')
+      ! end if
       if ( LPROF ) call stop_timing( id_diags, 'diags.ukca' )
     end if      ! write diag
 

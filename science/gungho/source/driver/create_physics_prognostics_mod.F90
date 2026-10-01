@@ -1607,11 +1607,19 @@ contains
     if ( aerosol == aerosol_um .and.                                           &
          ( glomap_mode == glomap_mode_ukca .or.                                &
            glomap_mode == glomap_mode_dust_and_clim ) ) then
-      call processor%apply(make_spec('emiss_bc_biomass', main%aerosol,         &
+      if (coarse_rad_aerosol) then
+        mesh_name = aerosol_mesh_name
+      else
+        mesh_name = ''
+      end if
+      call processor%apply(make_spec('emiss_bc_biomass', main%aerosol, Wtheta, &
+           coarse=coarse_rad_aerosol, coarse_mesh_name=mesh_name,              &
            empty=is_empty, ckp=checkpoint_GC3))
-      call processor%apply(make_spec('emiss_om_biomass', main%aerosol,         &
+      call processor%apply(make_spec('emiss_om_biomass', main%aerosol, Wtheta, &
+           coarse=coarse_rad_aerosol, coarse_mesh_name=mesh_name,              &
            empty=is_empty, ckp=checkpoint_GC3))
-      call processor%apply(make_spec('emiss_so2_nat', main%aerosol,            &
+      call processor%apply(make_spec('emiss_so2_nat', main%aerosol, Wtheta,    &
+           coarse=coarse_rad_aerosol, coarse_mesh_name=mesh_name,              &
            empty=is_empty, ckp=checkpoint_flag))
     end if
 
@@ -1752,29 +1760,33 @@ contains
         ckp=checkpoint_flag))
     ! Accumulation insoluble mode number mixing ratio
     call processor%apply(make_spec('n_acc_ins', main%aerosol, Wtheta, coarse=coarse_rad_aerosol,   &
+        coarse_mesh_name=mesh_name, &
         adv_coll=if_adv(advection_flag_dust, adv%last_con), ckp=checkpoint_flag))
     ! Accumulation insoluble dust aerosol mmr
     call processor%apply(make_spec('acc_ins_du', main%aerosol, Wtheta, coarse=coarse_rad_aerosol,  &
+        coarse_mesh_name=mesh_name, &
         adv_coll=if_adv(advection_flag_dust, adv%last_con), ckp=checkpoint_flag))
     ! Coarse insoluble mode number mixing ratio
     call processor%apply(make_spec('n_cor_ins', main%aerosol, Wtheta, coarse=coarse_rad_aerosol,   &
+        coarse_mesh_name=mesh_name,     &
         adv_coll=if_adv(advection_flag_dust, adv%last_con), ckp=checkpoint_flag))
     ! Coarse insoluble dust aerosol mmr
     call processor%apply(make_spec('cor_ins_du', main%aerosol, Wtheta, coarse=coarse_rad_aerosol,  &
+        coarse_mesh_name=mesh_name, &
         adv_coll=if_adv(advection_flag_dust, adv%last_con), ckp=checkpoint_flag))
     
-    ! Accumulation insoluble mode number mixing ratio
-    call processor%apply(make_spec('n_acc_ins_coarse', main%aerosol, Wtheta, coarse=.true.,   &
-        ckp=checkpoint_flag))
-    ! Accumulation insoluble dust aerosol mmr
-    call processor%apply(make_spec('acc_ins_du_coarse', main%aerosol, Wtheta, coarse=.true.,  &
-        ckp=checkpoint_flag))
-    ! Coarse insoluble mode number mixing ratio
-    call processor%apply(make_spec('n_cor_ins_coarse', main%aerosol, Wtheta, coarse=.true.,   &
-        ckp=checkpoint_flag))
-    ! Coarse insoluble dust aerosol mmr
-    call processor%apply(make_spec('cor_ins_du_coarse', main%aerosol, Wtheta, coarse=.true.,  &
-        ckp=checkpoint_flag))
+    ! ! Accumulation insoluble mode number mixing ratio
+    ! call processor%apply(make_spec('n_acc_ins_coarse', main%aerosol, Wtheta, coarse=.true.,   &
+    !     ckp=checkpoint_flag))
+    ! ! Accumulation insoluble dust aerosol mmr
+    ! call processor%apply(make_spec('acc_ins_du_coarse', main%aerosol, Wtheta, coarse=.true.,  &
+    !     ckp=checkpoint_flag))
+    ! ! Coarse insoluble mode number mixing ratio
+    ! call processor%apply(make_spec('n_cor_ins_coarse', main%aerosol, Wtheta, coarse=.true.,   &
+    !     ckp=checkpoint_flag))
+    ! ! Coarse insoluble dust aerosol mmr
+    ! call processor%apply(make_spec('cor_ins_du_coarse', main%aerosol, Wtheta, coarse=.true.,  &
+    !     ckp=checkpoint_flag))
 
 
     ! 3D fields, might need checkpointing
