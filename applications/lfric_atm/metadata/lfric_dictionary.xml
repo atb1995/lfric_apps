@@ -171,10 +171,10 @@
   <field id="emiss_om_biomass_high" name="emiss_om_biomass_high" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_high_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
   <field id="emiss_om_biomass_low" name="emiss_om_biomass_low" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_low_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
   <field id="emiss_so2_nat" name="emiss_so2_nat" long_name="tendency_of_atmosphere_mass_content_of_sulfur_dioxide_expressed_as_sulfur_from_natural_sources" unit="kg m-2 s-1" grid_ref="var_full_face_grid" />
-  <field id="soil_clay" name="soil_clay" long_name="volume_fraction_of_clay_in_soil" unit="1" grid_ref="var_face"/>
-  <field id="soil_sand" name="soil_sand" long_name="volume_fraction_of_sand_in_soil" unit="1" grid_ref="var_face"/>
+  <field id="soil_clay" name="soil_clay" long_name="volume_fraction_of_clay_in_soil" unit="1" domain_ref="face"/>
+  <field id="soil_sand" name="soil_sand" long_name="volume_fraction_of_sand_in_soil" unit="1" domain_ref="face"/>
   <field id="surf_wetness" name="surf_wetness" long_name="surface_wetness" unit="1" grid_ref="var_face"/>
-  <field id="dust_mrel" name="dust_mrel" long_name="mass_fraction_of_dust_in_size_bins" unit="1" grid_ref="var_face_dust" />
+  <field id="dust_mrel" name="dust_mrel" long_name="mass_fraction_of_dust_in_size_bins" unit="1" domain_ref="face" axis_ref="dust_divisions" />
   <field id="n_nuc_sol" name="n_nuc_sol" long_name="nucleation_soluble_mode_number" unit="1" grid_ref="var_full_face_grid" />
   <field id="nuc_sol_su" name="nuc_sol_su" long_name="nucleation_soluble_mode_h2so4_mmr" unit="kg kg-1" grid_ref="var_full_face_grid" />
   <field id="nuc_sol_om" name="nuc_sol_om" long_name="nucleation_soluble_mode_organic_matter_mmr" unit="kg kg-1" grid_ref="var_full_face_grid" />
