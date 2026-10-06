@@ -24,6 +24,26 @@
       <field field_ref="processed__pressure_in_wth"/>
     </field_group>
 
+    <!-- Broad aerosol diagnostics: mode number concentrations, key composition
+         and dust mass mixing ratios (3D fields averaged every timestep) -->
+    <field_group operation="average" freq_op="1ts" prec="4">
+      <field field_ref="aerosol__n_nuc_sol"/>
+      <field field_ref="aerosol__n_ait_sol"/>
+      <field field_ref="aerosol__n_acc_sol"/>
+      <field field_ref="aerosol__n_cor_sol"/>
+      <field field_ref="aerosol__n_ait_ins"/>
+      <field field_ref="aerosol__n_acc_ins"/>
+      <field field_ref="aerosol__n_cor_ins"/>
+      <field field_ref="aerosol__acc_sol_su"/>
+      <field field_ref="aerosol__acc_sol_bc"/>
+      <field field_ref="aerosol__acc_sol_om"/>
+      <field field_ref="aerosol__acc_sol_ss"/>
+      <field field_ref="aerosol__ait_sol_su"/>
+      <field field_ref="aerosol__acc_ins_du"/>
+      <field field_ref="aerosol__cor_ins_du"/>
+      <field field_ref="aerosol__cloud_drop_no_conc"/>
+    </field_group>
+
     <!-- 2D fields averaged every timestep -->
     <field_group operation="average" freq_op="1ts" prec="4">
       <field field_ref="processed__total_rain"/>
@@ -102,6 +122,15 @@
       <field field_ref="processed__tot_col_wetplusdry_mass"/>
       <field field_ref="processed__tot_col_encorr"/>
       <field field_ref="processed__pstar"/>
+    </field_group>
+
+    <!-- Broad aerosol diagnostics: surface emission/exchange fields (2D) -->
+    <field_group operation="average" freq_op="1ts" prec="4">
+      <field field_ref="emiss_so2_high"/>
+      <field field_ref="emiss_bc_biomass_high"/>
+      <field field_ref="emiss_om_biomass_high"/>
+      <field field_ref="emiss_dms_land"/>
+      <field field_ref="dms_conc_ocean"/>
     </field_group>
 
     <!-- 2D fields averaged on radiation timesteps -->

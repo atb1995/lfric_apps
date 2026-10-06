@@ -608,6 +608,67 @@
         "plot_str": "plot_map.py -encorr $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
     }) %}
 
+{# Short 3-day smoke-test version of clim_gal9_coarse-C48_MG (pdc_climate_short) #}
+{% elif task_ns.conf_name == "clim_gal9_coarse_short-C48_MG" %}
+
+    {% do task_dict.update({
+        "opt_confs": ["climate_coarse","um_dump"],
+        "resolution": "C48_MG",
+        "DT": 1800,
+        "tsteps": 144,
+        "mpi_parts": 216,
+        "log_level": "info",
+        "wallclock": 15,
+        "plot_str": "plot_map.py -encorr $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
+    }) %}
+
+{# Short 3-day smoke-test version of clim_gal9-C48_MG (non coarse-aerosol, pdc_climate_short) #}
+{% elif task_ns.conf_name == "clim_gal9_short-C48_MG" %}
+
+    {% do task_dict.update({
+        "opt_confs": ["climate","um_dump"],
+        "resolution": "C48_MG",
+        "DT": 1800,
+        "tsteps": 144,
+        "mpi_parts": 216,
+        "log_level": "info",
+        "wallclock": 15,
+        "plot_str": "plot_map.py -encorr $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
+    }) %}
+
+{# Short 3-day smoke-test version of clim_gal9_chem-C12 (pdc_climate_short) #}
+{# NOTE: chemistry ancils only exist at C12 - C48/C48_MG ancils are not generated, #}
+{# so this cannot be run at C48_MG (see clim_gal9_chem-C12 for the full-length job) #}
+{% elif task_ns.conf_name == "clim_gal9_chem_short-C12" %}
+
+    {% do task_dict.update({
+        "opt_confs": ["climate","chemistry","lowres_stp","um_dump"],
+        "resolution": "C12",
+        "DT": 1800,
+        "tsteps": 144,
+        "mpi_parts": 6,
+        "wallclock": 15,
+        "memory": [30, "GB"],
+        "plot_str": "plot_map.py -encorr $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
+    }) %}
+
+{# Short 3-day smoke-test version of clim_gal9_coarse-C48_MG with chemistry (pdc_climate_short) #}
+{# Uses chemistry_coarse_aero to select a coarse-grid-aware iodef (iodef_gal_clim_chem_coarse_aero.xml) #}
+{# so ancils/diagnostics correctly resolve against the C12 coarse mesh rather than the C48_MG fine mesh #}
+{% elif task_ns.conf_name == "clim_gal9_chem_coarse_short-C48_MG" %}
+
+    {% do task_dict.update({
+        "opt_confs": ["climate_coarse","chemistry","chemistry_coarse_aero","um_dump"],
+        "resolution": "C48_MG",
+        "DT": 1800,
+        "tsteps": 144,
+        "mpi_parts": 216,
+        "log_level": "info",
+        "wallclock": 15,
+        "memory": [40, "GB"],
+        "plot_str": "plot_map.py -encorr $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
+    }) %}
+
 {% elif task_ns.conf_name == "clim_gal9_1T-C12" %}
     {% do task_dict.update({
         "opt_confs": ["climate", "physics_segmentation","um_dump","no_diags"],
