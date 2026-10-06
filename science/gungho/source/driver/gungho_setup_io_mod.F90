@@ -11,7 +11,7 @@
 module gungho_setup_io_mod
 
   use constants_mod,             only: r_def, i_def, str_def, &
-                                       str_max_filename, r_second
+                                       str_max_filename, r_second, cmdi
   use driver_modeldb_mod,        only: modeldb_type
   use file_mod,                  only: FILE_MODE_READ, &
                                        FILE_MODE_WRITE
@@ -89,6 +89,8 @@ module gungho_setup_io_mod
                                        urban_ancil_path,          &
                                        start_dump_filename,       &
                                        start_dump_directory,      &
+                                       coarse_start_dump_filename, &
+                                       coarse_start_dump_directory,&
                                        iau_path,                  &
 #ifdef UM_PHYSICS
                                        iau_pert_path,             &
@@ -277,6 +279,22 @@ module gungho_setup_io_mod
       call files_list%insert_item( lfric_xios_file_type( dump_fname,                   &
                                                          xios_id="read_lfric_fd_dump", &
                                                          io_mode=FILE_MODE_READ ) )
+
+      ! When running with the coarse aerosol/chemistry mesh and a coarse start
+      ! dump has been configured, also read the coarse-mesh chemistry fields
+      ! from a SEPARATE dump file/domain (e.g. a C12 dump), since the regular
+      ! start dump above does not match the coarse mesh size. This is a
+      ! second, independent file read rather than a substitute for the one
+      ! above - the two dumps supply disjoint sets of fields (coarse-mesh
+      ! chemistry species vs everything else).
+      if ( (coarse_aerosol_ancil .or. coarse_rad_aerosol) .and. &
+           coarse_start_dump_directory /= cmdi ) then
+        write(dump_fname,'(A)') trim(coarse_start_dump_directory)//'/'// &
+                                trim(coarse_start_dump_filename)
+        call files_list%insert_item( lfric_xios_file_type( dump_fname,                     &
+                                                           xios_id="read_chem_coarse_dump", &
+                                                           io_mode=FILE_MODE_READ ) )
+      end if
     end if
 
 #ifdef UM_PHYSICS
