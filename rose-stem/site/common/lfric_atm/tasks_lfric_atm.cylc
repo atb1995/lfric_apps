@@ -507,6 +507,47 @@
         "plot_str": "plot_map.py $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
     }) %}
 
+{% elif task_ns.conf_name.startswith("nwp_gal9_coarse_aero-C896_MG") %}
+
+    {% do task_dict.update({
+        "CXI_MATCH_hybrid": true,
+        "opt_confs": ["um_dump","coarse_aero_hres"],
+        "resolution": "C896_MG",
+        "DT": 240,
+        "tsteps": 120,
+        "wallclock": 15,
+        "mpi_parts": 4704,
+        "xios_nodes": 5,
+        "mpi_parts_xios" : 147,
+        "log_level": "info",
+        "log_to_rank_zero_only": ".true.",
+        "memory_plot_ex": true,
+        "xios_info_level": 1,
+        "xios_print_file": ".true.",
+        "plot_str": "plot_map.py $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
+    }) %}
+
+{% elif task_ns.conf_name.startswith("nwp_gal9_coarse_aero_low_order-C896_MG") %}
+
+    {% do task_dict.update({
+        "CXI_MATCH_hybrid": true,
+        "opt_confs": ["um_dump","coarse_aero_hres","aero_low_order"],
+        "resolution": "C896_MG",
+        "DT": 240,
+        "tsteps": 120,
+        "wallclock": 15,
+        "mpi_parts": 4704,
+        "xios_nodes": 5,
+        "mpi_parts_xios" : 147,
+        "log_level": "info",
+        "log_to_rank_zero_only": ".true.",
+        "memory_plot_ex": true,
+        "xios_info_level": 1,
+        "xios_print_file": ".true.",
+        "plot_str": "plot_map.py $NODAL_DATA_DIR/lfric_diagnostics.nc  $PLOT_DIR",
+    }) %}
+
+
 {# ###################################################################### #}
 {# Global Climate jobs #}
 {# ###################################################################### #}
@@ -1240,6 +1281,44 @@
 
     {% do task_dict.update({
         "opt_confs": ["um_dump","oper_diags_hres"],
+    }) %}
+
+{% endif %}
+
+{% if task_ns.conf_name.startswith("nwp_gal9_coarse_aero-C896_MG_720t") %}
+
+    {% do task_dict.update({
+        "opt_confs": ["um_dump","coarse_aero_hres"],
+        "tsteps": 720,
+        "wallclock": 60,
+        "plot_str": "",
+        "restart_write": false,
+    }) %}
+{% endif %}
+
+{% if task_ns.conf_name.startswith("nwp_gal9_coarse_aero-C896_MG_720t_opDiag") %}
+
+    {% do task_dict.update({
+        "opt_confs": ["um_dump","coarse_aero_hres","oper_diags_hres_coarse_aero"],
+    }) %}
+
+{% endif %}
+
+{% if task_ns.conf_name.startswith("nwp_gal9_coarse_aero_low_order-C896_MG_720t") %}
+
+    {% do task_dict.update({
+        "opt_confs": ["um_dump","coarse_aero_hres","aero_low_order"],
+        "tsteps": 720,
+        "wallclock": 60,
+        "plot_str": "",
+        "restart_write": false,
+    }) %}
+{% endif %}
+
+{% if task_ns.conf_name.startswith("nwp_gal9_coarse_aero_low_order-C896_MG_720t_opDiag") %}
+
+    {% do task_dict.update({
+        "opt_confs": ["um_dump","coarse_aero_hres","aero_low_order","oper_diags_hres_coarse_aero"],
     }) %}
 
 {% endif %}
