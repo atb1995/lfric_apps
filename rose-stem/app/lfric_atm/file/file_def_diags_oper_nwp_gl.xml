@@ -214,7 +214,6 @@
       <field field_ref="orographic_drag__tauy_orographic_drag"/>
       <field field_ref="orographic_drag__taux_orog_gwd"/>
       <field field_ref="orographic_drag__tauy_orog_gwd"/>      
-      <field field_ref="aerosol__cloud_drop_no_conc"/>
     </field_group> 
     
     <field_group operation="average" freq_op="1ts" prec="4"> 
