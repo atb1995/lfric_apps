@@ -39,16 +39,16 @@
   <field id="lbc_m_s" name="lbc_m_s" long_name="lbc_m_s" unit="kg kg-1" grid_ref="full_level_face_grid" />
   <field id="lbc_m_g" name="lbc_m_g" long_name="lbc_m_g" unit="kg kg-1" grid_ref="full_level_face_grid" />
   <!-- chemistry fields -->
-  <field id="emiss_c2h6" name="emissions_C2H6" long_name="C2H6 surf emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_c3h8" name="emissions_C3H8" long_name="C3H8 surf emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_c5h8" name="emissions_C5H8" long_name="Biogenic surface C5H8 emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_ch4" name="emissions_CH4" long_name="CH4 surf emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_co" name="emissions_CO" long_name="CO surf emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_hcho" name="emissions_HCHO" long_name="HCHO surf emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_me2co" name="emissions_Me2CO" long_name="Me2CO surf emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_mecho" name="emissions_MeCHO" long_name="MeCHO surf emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_nh3" name="emissions_NH3" long_name="ammonia gas emissions" unit="kg m-2 s-1" domain_ref="var_face" />
-  <field id="emiss_no" name="emissions_NO" long_name="NOx surface emissions" unit="kg m-2 s-1" domain_ref="var_face" />
+  <field id="emiss_c2h6" name="emissions_C2H6" long_name="C2H6 surf emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_c3h8" name="emissions_C3H8" long_name="C3H8 surf emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_c5h8" name="emissions_C5H8" long_name="Biogenic surface C5H8 emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_ch4" name="emissions_CH4" long_name="CH4 surf emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_co" name="emissions_CO" long_name="CO surf emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_hcho" name="emissions_HCHO" long_name="HCHO surf emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_me2co" name="emissions_Me2CO" long_name="Me2CO surf emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_mecho" name="emissions_MeCHO" long_name="MeCHO surf emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_nh3" name="emissions_NH3" long_name="ammonia gas emissions" unit="kg m-2 s-1" grid_ref="var_face" />
+  <field id="emiss_no" name="emissions_NO" long_name="NOx surface emissions" unit="kg m-2 s-1" grid_ref="var_face" />
   <field id="emiss_meoh" name="emissions_MeOH" long_name="Biogenic surface methanol (CH3OH) emissions" unit="kg m-2 s-1" domain_ref="face" />
   <field id="emiss_no_aircrft" name="emissions_NO_aircrft" long_name="NOx aircraft emissions" unit="kg m-2 s-1" grid_ref="var_full_face_grid" />
   <field id="o3p" name="o3p" long_name="mass_fraction_of_oxygen_ground_state_in_air" unit="kg kg-1" grid_ref="var_full_face_grid" />
@@ -155,21 +155,21 @@
   <field id="vo" name="vo" long_name="mass_fraction_of_vanadium_oxide_in_air" unit="kg kg-1" grid_ref="var_full_face_grid" />
   <field id="photol_rates" name="photol_rates" long_name="photolysis_rates" unit="s-1" operation="once" grid_ref="full_level_face_grid_photol_species" />
   <!-- aerosol fields -->
-  <field id="emiss_bc_biofuel" name="emiss_bc_biofuel" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_emission_from_biofuel_burning" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="emiss_bc_fossil" name="emiss_bc_fossil" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_emission_from_fossil_fuel_burning" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="emiss_dms_land" name="emiss_dms_land" long_name="tendency_of_atmosphere_mass_content_of_dimethyl_sulfate_due_to_emission_from_land_sources" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="dms_conc_ocean" name="dms_conc_ocean" long_name="mole_concentration_of_dimethyl_sulfide_in_sea_water" unit="mol m-3" grid_def="var_face"/>
-  <field id="emiss_monoterp" name="emiss_monoterp" long_name="tendency_of_atmosphere_mass_content_of_monoterpenes_due_to_emission" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="emiss_om_biofuel" name="emiss_om_biofuel" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_emission_from_biofuel_burning" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="emiss_om_fossil" name="emiss_om_fossil" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_emission_from_fossil_fuel_burning" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="emiss_so2_low" name="emiss_so2_low" long_name="tendency_of_atmosphere_mass_content_of_sulfur_dioxide_expressed_as_sulfur_due_to_emission_from_low_level_sources" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="emiss_so2_high" name="emiss_so2_high" long_name="tendency_of_atmosphere_mass_content_of_sulfur_dioxide_expressed_as_sulfur_due_to_emission_from_high_level_sources" unit="kg m-2 s-1" grid_def="var_face"/>
+  <field id="emiss_bc_biofuel" name="emiss_bc_biofuel" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_emission_from_biofuel_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="emiss_bc_fossil" name="emiss_bc_fossil" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_emission_from_fossil_fuel_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="emiss_dms_land" name="emiss_dms_land" long_name="tendency_of_atmosphere_mass_content_of_dimethyl_sulfate_due_to_emission_from_land_sources" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="dms_conc_ocean" name="dms_conc_ocean" long_name="mole_concentration_of_dimethyl_sulfide_in_sea_water" unit="mol m-3" grid_ref="var_face"/>
+  <field id="emiss_monoterp" name="emiss_monoterp" long_name="tendency_of_atmosphere_mass_content_of_monoterpenes_due_to_emission" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="emiss_om_biofuel" name="emiss_om_biofuel" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_emission_from_biofuel_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="emiss_om_fossil" name="emiss_om_fossil" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_emission_from_fossil_fuel_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="emiss_so2_low" name="emiss_so2_low" long_name="tendency_of_atmosphere_mass_content_of_sulfur_dioxide_expressed_as_sulfur_due_to_emission_from_low_level_sources" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="emiss_so2_high" name="emiss_so2_high" long_name="tendency_of_atmosphere_mass_content_of_sulfur_dioxide_expressed_as_sulfur_due_to_emission_from_high_level_sources" unit="kg m-2 s-1" grid_ref="var_face"/>
   <field id="emiss_bc_biomass" name="emiss_bc_biomass" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_emission_from_biomass_burning" unit="kg m-2 s-1" grid_ref="var_full_face_grid" />
-  <field id="emiss_bc_biomass_high" name="emiss_bc_biomass_high" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_high_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="emiss_bc_biomass_low" name="emiss_bc_biomass_low" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_low_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_def="var_face"/>
+  <field id="emiss_bc_biomass_high" name="emiss_bc_biomass_high" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_high_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="emiss_bc_biomass_low" name="emiss_bc_biomass_low" long_name="tendency_of_atmosphere_mass_content_of_black_carbon_dry_aerosol_due_to_low_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
   <field id="emiss_om_biomass" name="emiss_om_biomass" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_emission_from_biomass_burning" unit="kg m-2 s-1" grid_ref="var_full_face_grid" />
-  <field id="emiss_om_biomass_high" name="emiss_om_biomass_high" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_high_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_def="var_face"/>
-  <field id="emiss_om_biomass_low" name="emiss_om_biomass_low" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_low_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_def="var_face"/>
+  <field id="emiss_om_biomass_high" name="emiss_om_biomass_high" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_high_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
+  <field id="emiss_om_biomass_low" name="emiss_om_biomass_low" long_name="tendency_of_atmosphere_mass_content_of_particulate_organic_matter_dry_aerosol_expressed_as_carbon_due_to_low_level_emission_from_biomass_burning" unit="kg m-2 s-1" grid_ref="var_face"/>
   <field id="emiss_so2_nat" name="emiss_so2_nat" long_name="tendency_of_atmosphere_mass_content_of_sulfur_dioxide_expressed_as_sulfur_from_natural_sources" unit="kg m-2 s-1" grid_ref="var_full_face_grid" />
   <field id="soil_clay" name="soil_clay" long_name="volume_fraction_of_clay_in_soil" unit="1" domain_ref="face"/>
   <field id="soil_sand" name="soil_sand" long_name="volume_fraction_of_sand_in_soil" unit="1" domain_ref="face"/>

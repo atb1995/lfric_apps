@@ -580,8 +580,8 @@ contains
     logical(l_def) :: l_multigrid
     logical(l_def) :: inner_halo_tiles
     logical(l_def) :: prepartitioned
-    logical(l_def) :: check_partitions
     logical(l_def) :: coarse_rad_aerosol
+    logical(l_def) :: check_partitions
 
     integer(i_def) :: geometry
     integer(i_def) :: topology
@@ -619,7 +619,6 @@ contains
       orography_mesh_name         = modeldb%config%multires_coupling%orography_mesh_name()
       aerosol_mesh_name           = modeldb%config%multires_coupling%aerosol_mesh_name()
       coarse_rad_aerosol           = modeldb%config%multires_coupling%coarse_rad_aerosol()
-      multires_coupling_nml => modeldb%configuration%get_namelist('multires_coupling')
     else
       coarse_rad_aerosol = .false.
     end if

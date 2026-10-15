@@ -353,6 +353,7 @@ contains
     type( field_collection_type ), pointer :: stph_fields
     type( field_collection_type ), pointer :: lbc_fields
 
+
     ! Arrays for passing modeldb data to stochastic physics scheme
     real(r_def), allocatable :: spt_spectral_coeffc(:)
     real(r_def), allocatable :: spt_spectral_coeffs(:)

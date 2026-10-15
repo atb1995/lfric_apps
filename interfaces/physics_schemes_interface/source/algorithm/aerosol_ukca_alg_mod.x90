@@ -7,8 +7,6 @@
 
 module aerosol_ukca_alg_mod
 
-  use config_mod,      only: config_type
-  use mesh_mod,        only: mesh_type
   use mesh_mod, only: mesh_type
   use function_space_mod,              only: function_space_type
   use function_space_collection_mod,   only: function_space_collection
@@ -22,6 +20,8 @@ module aerosol_ukca_alg_mod
   use initialization_config_mod,  only: coarse_aerosol_ancil
   use multidata_field_dimensions_mod, &
                                        only: get_ndata_val => get_multidata_field_dimension
+  use config_mod,      only: config_type
+  use mesh_mod,        only: mesh_type
   use model_clock_mod, only: model_clock_type
 
   implicit none
@@ -89,12 +89,12 @@ contains
     use aerosol_ukca_kernel_mod,       only: aerosol_ukca_kernel_type
     use io_config_mod,                 only: use_xios_io, write_diag
     use xios,                          only: xios_date, xios_get_current_date, &
-                                             xios_date_get_day_of_year
+                                             xios_date_get_day_of_year,        &
+                                             xios_date_get_second_of_day
+    use timer_mod,                     only: timer
+    use log_mod,                       only: log_event, LOG_LEVEL_DEBUG, LOG_LEVEL_INFO
     use timing_mod,                    only: start_timing, stop_timing, &
                                              tik, LPROF
-    use log_mod,                       only: log_event, LOG_LEVEL_DEBUG
-                                             xios_date_get_day_of_year,        &
-                                             xios_date_get_second_of_day, LOG_LEVEL_INFO
 
     use chemistry_config_mod,          only: chem_scheme,                      &
                                              chem_scheme_strattrop,            &
@@ -689,13 +689,14 @@ contains
     type( field_type ) :: mr_ice
     integer( tik ) :: id, id_photo, id_chem, id_diags
 
-    if ( LPROF ) call start_timing( id, 'ukca' )
     type(function_space_type), pointer :: wth_coarse
     type(function_space_type), pointer :: w3_coarse
     type(function_space_type), pointer :: w3_2d_coarse
     type(function_space_type), pointer :: w3_2d_multidata_coarse
 
     logical(l_def), save :: first_call = .true.
+
+    if ( LPROF ) call start_timing( id, 'ukca' )
 
     call log_event( 'Running UKCA aerosol', LOG_LEVEL_DEBUG )
 
@@ -1278,13 +1279,13 @@ contains
       shifted_aero_mesh => mesh_collection%get_mesh(aero_mesh, SHIFTED)
       ! Coarse Dust Fields
       ! =================== Runtime Fields ============================== !
-      latitude_w3_aero => get_latitude_fv(W3, aero_mesh%get_id())  ! Runtime
-      longitude_w3_aero => get_longitude_fv(W3, aero_mesh%get_id()) ! Runtime
-      height_w3_aero  =>  get_height_fv( W3, aero_mesh%get_id() )! Runtime
-      height_wth_aero  => get_height_fv( Wtheta, aero_mesh%get_id() ) ! Runtime
-      rdz_w3_aero => get_rdz_w3( aero_mesh%get_id() )      ! Runtime
-      cell_area_aero  => get_da_msl_proj(aero_mesh%get_id())   ! Runtime
-      detj_shifted_aero => get_detj_at_w3_fv(shifted_aero_mesh%get_id())! Runtime
+      latitude_w3_aero => get_latitude_fv(config, aero_mesh, W3)  ! Runtime
+      longitude_w3_aero => get_longitude_fv(config, aero_mesh, W3) ! Runtime
+      height_w3_aero  =>  get_height_fv(config, aero_mesh, W3)! Runtime
+      height_wth_aero  => get_height_fv(config, aero_mesh, Wtheta) ! Runtime
+      rdz_w3_aero => get_rdz_w3(config, aero_mesh%get_id())      ! Runtime
+      cell_area_aero  => get_da_msl_proj(config, aero_mesh)   ! Runtime
+      detj_shifted_aero => get_detj_at_w3_fv(shifted_aero_mesh)! Runtime
 
       ! =================== Tile Fields ============================== !
       w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh,  0, 0, &
@@ -1605,7 +1606,7 @@ contains
       call map_rho_intermesh(rho_coarse, state(igh_d))   
       
       call log_event( 'Mapping mr', LOG_LEVEL_INFO )
-      call map_mr_bundle_intermesh(mr_coarse, mr, rho_coarse, state(igh_d))
+      call map_mr_bundle_intermesh(config, mr_coarse, mr, rho_coarse, state(igh_d))
       ! Calculate total ice field
       call mr_coarse(imr_ci)%copy_field_properties(mr_ice_coarse)
       call invoke(setval_X(mr_ice_coarse, mr_coarse(imr_ci)))
@@ -1628,8 +1629,8 @@ contains
       call rho_in_wth_coarse%initialise(wth_coarse, 'rho_in_wth_coarse')
       !call map_scalar_intermesh(dtrdz_tq_bl_coarse, dtrdz_tq_bl)
 
-      dtrdz_coarse_wtheta => get_dtrdz_wth(aero_mesh%get_id(), model_clock)
-      call map_physics_scalars(rho_in_wth_coarse, rho_coarse)
+      dtrdz_coarse_wtheta => get_dtrdz_wth(config, aero_mesh%get_id(), model_clock)
+      call map_physics_scalars(config, rho_in_wth_coarse, rho_coarse)
       call invoke(setval_X(dtrdz_tq_bl_coarse, dtrdz_coarse_wtheta))
       call invoke( inc_X_divideby_Y(dtrdz_tq_bl_coarse,  rho_in_wth_coarse) )
 
@@ -1667,7 +1668,7 @@ contains
       !call map_physics_scalars(rho_in_wth_coarse,   rho_coarse)
       call moist_dyn_factors_alg(moist_dyn_coarse, mr_coarse)
       call invoke(X_times_Y(wetrho_in_wth_coarse, rho_in_wth_coarse, moist_dyn_coarse(total_mass)))
-      call map_physics_scalars(wetrho_in_w3_coarse, wetrho_in_wth_coarse)
+      call map_physics_scalars(config, wetrho_in_w3_coarse, wetrho_in_wth_coarse)
 
       ! Compute turbulence fields
       call log_event( 'Mapping ent_t_frac_dsc', LOG_LEVEL_INFO )
@@ -1735,13 +1736,13 @@ contains
       ncells = aero_mesh%get_last_edge_cell()
     
     else
-      latitude_w3_aero => get_latitude_fv(W3, mesh%get_id())  ! Runtime
-      longitude_w3_aero => get_longitude_fv(W3, mesh%get_id()) ! Runtime
-      height_w3_aero  =>  get_height_fv( W3, mesh%get_id() )! Runtime
-      height_wth_aero  => get_height_fv( Wtheta, mesh%get_id() ) ! Runtime
-      rdz_w3_aero => get_rdz_w3( mesh%get_id() )      ! Runtime
-      cell_area_aero  => get_da_msl_proj(mesh%get_id())   ! Runtime
-      detj_shifted_aero => get_detj_at_w3_fv(shifted_mesh%get_id())! Runtime
+      latitude_w3_aero => get_latitude_fv(config, mesh, W3)  ! Runtime
+      longitude_w3_aero => get_longitude_fv(config, mesh, W3) ! Runtime
+      height_w3_aero  =>  get_height_fv(config, mesh, W3)! Runtime
+      height_wth_aero  => get_height_fv(config, mesh, Wtheta) ! Runtime
+      rdz_w3_aero => get_rdz_w3(config, mesh%get_id())      ! Runtime
+      cell_area_aero  => get_da_msl_proj(config, mesh)   ! Runtime
+      detj_shifted_aero => get_detj_at_w3_fv(shifted_mesh)! Runtime
 
       call chemistry_fields%get_field('o3p', o3p_aero)
       call microphysics_fields%get_field('ls_rain_3d', ls_rain_3d_aero)

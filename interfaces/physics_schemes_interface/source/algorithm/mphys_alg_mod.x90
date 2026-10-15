@@ -151,8 +151,9 @@ contains
 
     type( field_type ) :: pressure_inc
 
-    type(mesh_type), pointer :: mesh => null()
     type(function_space_type), pointer :: wth_fine => null()
+    type(mesh_type), pointer :: mesh
+    integer(tik)             :: id
 
     if ( LPROF ) call start_timing( id, 'microphysics.wb' )
 

@@ -303,9 +303,9 @@
         "mpi_parts_xios" : 32,
     }) %}
 
-
-
+{% elif task_ns.conf_name == "nwp_gal9-C896_MG" %}
 {% elif task_ns.conf_name == "nwp_gal9_ls_and_jedi-C224_MG" %}
+
     {% do task_dict.update({
         "opt_confs": ["um_dump","ls_and_jedi","june_case"],
         "resolution": "C224_MG",

@@ -102,94 +102,98 @@
       <field id="em_c2h6_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_c2h6_data" name="emissions_C2H6" long_name="C2H6 surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_c3h8_ancil" name="emiss_c3h8_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_c3h8_ancil_field_group" >
       <field id="em_c3h8_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_c3h8_data" name="emissions_C3H8" long_name="C3H8 surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_c5h8_ancil" name="emiss_c5h8_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_c5h8_ancil_field_group" >
       <field id="em_c5h8_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_c5h8_data" name="emissions_C5H8" long_name="Biogenic surface C5H8 emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_ch4_ancil" name="emiss_ch4_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_ch4_ancil_field_group" >
       <field id="em_ch4_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_ch4_data" name="emissions_CH4" long_name="CH4 surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_co_ancil" name="emiss_co_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_co_ancil_field_group" >
       <field id="em_co_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_co_data" name="emissions_CO" long_name="CO surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_hcho_ancil" name="emiss_hcho_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_hcho_ancil_field_group" >
       <field id="em_hcho_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_hcho_data" name="emissions_HCHO" long_name="HCHO surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_me2co_ancil" name="emiss_me2co_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_me2co_ancil_field_group" >
       <field id="em_me2co_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_me2co_data" name="emissions_Me2CO" long_name="Me2CO surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_mecho_ancil" name="emiss_mecho_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_mecho_ancil_field_group" >
       <field id="em_mecho_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_mecho_data" name="emissions_MeCHO" long_name="MeCHO surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_nh3_ancil" name="emiss_nh3_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_nh3_ancil_field_group" >
       <field id="em_nh3_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_nh3_data" name="emissions_NH3" long_name="ammonia gas emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_no_ancil" name="emiss_no_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_no_ancil_field_group" >
       <field id="em_no_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_no_data" name="emissions_NO" long_name="NOx surface emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_meoh_ancil" name="emiss_meoh_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_meoh_ancil_field_group" >
       <field id="em_meoh_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_meoh_data" name="emissions_MeOH" long_name="Biogenic surface methanol (CH3OH) emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_2D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
      <file id="emiss_no_aircrft_ancil" name="emiss_no_aircrft_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
      <field_group id="emiss_no_aircrft_ancil_field_group" >
       <field id="em_no_aircrft_time" name="time" unit="hours" operation="once" axis_ref="monthly_climatology"/>
       <field id="emiss_no_aircrft_data" name="emissions_NO_aircrft" long_name="NOx aircraft emissions" unit="kg m-2 s-1" operation="instant" grid_ref="variable_3D_monthly_grid"/>
      </field_group>
-      </file>
+     </file>
 
-  <file id="emiss_bc_biofuel_ancil" name="emiss_bc_biofuel_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
-    <field id="em_bc_bf_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
-    <field id="emiss_bc_biofuel_data" name="emissions_BC_biofuel" long_name="BC biofuel surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
-  </file>
+     <file id="emiss_bc_biofuel_ancil" name="emiss_bc_biofuel_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
+       <field_group id="emiss_bc_biofuel_ancil_field_group" >
+         <field id="em_bc_bf_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
+         <field id="emiss_bc_biofuel_data" name="emissions_BC_biofuel" long_name="BC biofuel surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
+       </field_group>
+     </file>
 
-  <file id="emiss_bc_fossil_ancil" name="emiss_bc_fossil_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
-    <field id="em_bc_ff_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
-    <field id="emiss_bc_fossil_data" name="emissions_BC_fossil" long_name="BC fossil fuel surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
-  </file>
+     <file id="emiss_bc_fossil_ancil" name="emiss_bc_fossil_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
+       <field_group id="emiss_bc_fossil_ancil_field_group">
+         <field id="em_bc_ff_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
+         <field id="emiss_bc_fossil_data" name="emissions_BC_fossil" long_name="BC fossil fuel surf emissions" unit="kg m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
+       </field_group>
+     </file>
 
   <file id="emiss_bc_biomass_ancil" name="emiss_bc_biomass_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
    <field_group id="emiss_bc_biomass_ancil_field_group" >
@@ -199,13 +203,17 @@
   </file>
 
   <file id="emiss_bc_biomass_hi_ancil" name="emiss_bc_biomass_hi_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
-    <field id="em_bc_bb_hi_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
-    <field id="emiss_bc_biomass_high_data" name="emissions_BC_biomass_high" long_name="BC biomass high-level emissions" unit="kg m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
+    <field_group id="emiss_bc_biomass_hi_ancil_field_group" >
+      <field id="em_bc_bb_hi_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
+      <field id="emiss_bc_biomass_high_data" name="emissions_BC_biomass_high" long_name="BC biomass high-level emissions" unit="kg m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
+    </field_group>
   </file>
 
   <file id="emiss_bc_biomass_lo_ancil" name="emiss_bc_biomass_lo_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
-    <field id="em_bc_bb_lo_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
-    <field id="emiss_bc_biomass_low_data" name="emissions_BC_biomass_low" long_name="BC biomass low-level emissions" unit="kg m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
+    <field_group id="emiss_bc_biomass_lo_ancil_field_group" >
+      <field id="em_bc_bb_lo_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
+      <field id="emiss_bc_biomass_low_data" name="emissions_BC_biomass_low" long_name="BC biomass low-level emissions" unit="kg m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
+    </field_group>
   </file>
 
   <file id="emiss_dms_land_ancil" name="emiss_dms_land_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
@@ -230,8 +238,10 @@
   </file>
 
   <file id="emiss_om_biofuel_ancil" name="emiss_om_biofuel_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
-    <field id="em_om_bf_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
-    <field id="emiss_om_biofuel_data" name="emissions_OC_biofuel" long_name="OC biofuel surf emissions expressed as carbon" unit="kg(C) m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
+    <field_group id="emiss_om_biofuel_ancil_field_group" >
+      <field id="em_om_bf_time" name="time" unit="days" operation="once" axis_ref="emiss_axis"/>
+      <field id="emiss_om_biofuel_data" name="emissions_OC_biofuel" long_name="OC biofuel surf emissions expressed as carbon" unit="kg(C) m-2 s-1" operation="instant" grid_ref="var_face_emiss"/>
+    </field_group>
   </file>
 
   <file id="emiss_om_fossil_ancil" name="emiss_om_fossil_ancil" mode="read" output_freq="1mo" convention="UGRID" cyclic="true" enabled=".FALSE.">
@@ -277,7 +287,9 @@
   </file>
 
   <file id="emiss_so2_nat_ancil" name="emiss_so2_nat_ancil" mode="read" output_freq="1ts" convention="UGRID" cyclic="false" enabled=".FALSE.">
+   <field_group id="emiss_so2_nat_ancil_field_group" >
     <field id="emiss_so2_nat" name="emissions_SO2_nat_kgSO2" long_name="SO2 natural emissions" unit="kg(SO2) m-2 s-1" operation="once" grid_ref="var_full_face_grid"/>
+   </field_group>
   </file>
 
   <file id="soil_dust_ancil" name="soil_dust_ancil" mode="read" output_freq="1ts" convention="UGRID" cyclic="false" enabled=".FALSE.">
