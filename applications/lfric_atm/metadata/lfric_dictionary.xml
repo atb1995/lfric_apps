@@ -203,7 +203,7 @@
   <field id="acc_ins_du_coarse" name="acc_ins_du_coarse" long_name="accumulation_insoluble_mode_dust_mmr_c" unit="kg kg-1" grid_ref="coarse_full_face_grid" />
   <field id="n_cor_ins_coarse" name="n_cor_ins_coarse" long_name="coarse_insoluble_mode_number_c" unit="1" grid_ref="coarse_full_face_grid" />
   <field id="cor_ins_du_coarse" name="cor_ins_du_coarse" long_name="coarse_insoluble_mode_dust_mmr_c" unit="kg kg-1" grid_ref="coarse_full_face_grid" />
-  <field id="cloud_drop_no_conc" name="cloud_drop_no_conc" long_name="cloud_droplet_number_concentration" unit="m-3" grid_ref="var_full_face_grid" />
+  <field id="cloud_drop_no_conc" name="cloud_drop_no_conc" long_name="cloud_droplet_number_concentration" unit="m-3" grid_ref="full_level_face_grid" />
   <field id="drydp_ait_sol" name="drydp_ait_sol" long_name="dry_modal_diameter_of_aitken_soluble_mode" unit="m" grid_ref="var_full_face_grid" />
   <field id="drydp_acc_sol" name="drydp_acc_sol" long_name="dry_modal_diameter_of_accumulation_soluble_mode" unit="m" grid_ref="var_full_face_grid" />
   <field id="drydp_cor_sol" name="drydp_cor_sol" long_name="dry_modal_diameter_of_coarse_soluble_mode" unit="m" grid_ref="var_full_face_grid" />
