@@ -490,8 +490,6 @@ contains
     type( field_type ), target :: n_ait_ins_fine
     type( field_type ), target :: ait_ins_bc_fine
     type( field_type ), target :: ait_ins_om_fine
-    type( field_type ), target :: tnuc_fine
-    type( field_type ), target :: tnuc_nlcl_fine
 
 
 
@@ -829,8 +827,6 @@ contains
       call n_ait_ins_fine%initialise(vector_space = wth_fine)
       call ait_ins_bc_fine%initialise(vector_space = wth_fine)
       call ait_ins_om_fine%initialise(vector_space = wth_fine)
-      call tnuc_fine%initialise(vector_space = wth_fine)
-      call tnuc_nlcl_fine%initialise(vector_space = wth_fine)
 
       call map_rho_intermesh(rho_coarse, rho)
       call map_mr_intermesh(config, n_acc_ins_fine, n_acc_ins, rho, rho_coarse)
@@ -945,8 +941,6 @@ contains
       call map_mr_intermesh(config, n_ait_ins_fine, n_ait_ins, rho, rho_coarse)
       call map_mr_intermesh(config, ait_ins_bc_fine, ait_ins_bc, rho, rho_coarse)
       call map_mr_intermesh(config, ait_ins_om_fine, ait_ins_om, rho, rho_coarse)
-      call map_mr_intermesh(config, tnuc_fine, tnuc, rho, rho_coarse)
-      call map_mr_intermesh(config, tnuc_nlcl_fine, tnuc_nlcl, rho, rho_coarse)
       
       ! Point _aero pointers to _fine fields
       acc_ins_du_aero => acc_ins_du_fine
@@ -1061,8 +1055,9 @@ contains
       n_ait_ins_aero => n_ait_ins_fine
       ait_ins_bc_aero => ait_ins_bc_fine
       ait_ins_om_aero => ait_ins_om_fine
-      tnuc_aero => tnuc_fine
-      tnuc_nlcl_aero => tnuc_nlcl_fine
+      ! tnuc fields are microphysics fields on the physics mesh, not coarse
+      tnuc_aero => tnuc
+      tnuc_nlcl_aero => tnuc_nlcl
     else
       ! Get _aero fields directly from the field collections, just like
       ! the regular (non-coarse) fields fetched above
@@ -1553,8 +1548,6 @@ contains
       call map_mr_intermesh(config, n_ait_ins, n_ait_ins_aero, rho_coarse, rho)
       call map_mr_intermesh(config, ait_ins_bc, ait_ins_bc_aero, rho_coarse, rho)
       call map_mr_intermesh(config, ait_ins_om, ait_ins_om_aero, rho_coarse, rho)
-      call map_mr_intermesh(config, tnuc, tnuc_aero, rho_coarse, rho)
-      call map_mr_intermesh(config, tnuc_nlcl, tnuc_nlcl_aero, rho_coarse, rho)
  	  end if
 
     ! Switch UM back to columns
