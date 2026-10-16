@@ -1936,8 +1936,9 @@ contains
     end if
 
     ! Cloud droplet number concentration
+    ! Held on the fine mesh as radiation, microphysics and COSP use it there;
+    ! coarse aerosol schemes map to/from a coarse copy themselves.
     call processor%apply(make_spec('cloud_drop_no_conc', main%aerosol, Wtheta, &
-      coarse=coarse_rad_aerosol, coarse_mesh_name=mesh_name,                   &
         ckp=checkpoint_flag))
 
     if (aerosol == aerosol_um) then

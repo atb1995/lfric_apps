@@ -552,6 +552,8 @@ contains
     type( field_type ), pointer :: n_cor_ins_f
     type( field_type ), pointer :: cor_ins_du_f
     type( field_type ), pointer :: cloud_drop_no_conc
+    type( field_type ), pointer :: cloud_drop_no_conc_aero
+    type( field_type ), target  :: cloud_drop_no_conc_coarse
     type( field_type ), pointer :: drydp_ait_sol
     type( field_type ), pointer :: drydp_acc_sol
     type( field_type ), pointer :: drydp_cor_sol
@@ -871,6 +873,7 @@ contains
     nullify(n_cor_ins)
     nullify(cor_ins_du)
     nullify(cloud_drop_no_conc)
+    nullify(cloud_drop_no_conc_aero)
     nullify(drydp_ait_sol)
     nullify(drydp_acc_sol)
     nullify(drydp_cor_sol)
@@ -1334,6 +1337,7 @@ contains
       call bulk_fraction_coarse%initialise( wth_coarse, 'bulk_fraction_coarse')
       call liquid_fraction_coarse%initialise( wth_coarse, 'liquid_fraction_coarse')
       call area_fraction_coarse%initialise( wth_coarse, 'area_fraction_coarse')
+      call cloud_drop_no_conc_coarse%initialise( wth_coarse, 'cloud_drop_no_conc_coarse')
       call tke_bl_coarse%initialise( wth_coarse, 'tke_bl_coarse')
 
       call exner_coarse%initialise( w3_coarse, 'exner_coarse')
@@ -1420,6 +1424,9 @@ contains
       
       call log_event( 'Mapping bulk_fraction', LOG_LEVEL_INFO )
       call map_scalar_intermesh(bulk_fraction_coarse, bulk_fraction)
+
+      call log_event( 'Mapping cloud_drop_no_conc', LOG_LEVEL_INFO )
+      call map_scalar_intermesh(cloud_drop_no_conc_coarse, cloud_drop_no_conc)
       
       call log_event( 'Mapping liquid_fraction', LOG_LEVEL_INFO )
       call map_scalar_intermesh(liquid_fraction_coarse, liquid_fraction)
@@ -1475,6 +1482,7 @@ contains
       conv_snow_3d_aero => conv_snow_3d_coarse
       cca_aero => cca_coarse
       bulk_fraction_aero => bulk_fraction_coarse
+      cloud_drop_no_conc_aero => cloud_drop_no_conc_coarse
       liquid_fraction_aero => liquid_fraction_coarse
       area_fraction_aero => area_fraction_coarse
       z0m_aero => z0m_coarse
@@ -1780,6 +1788,7 @@ contains
       call convection_fields%get_field('cca', cca_aero)
 
       call cloud_fields%get_field('bulk_fraction', bulk_fraction_aero)
+      cloud_drop_no_conc_aero => cloud_drop_no_conc
       call cloud_fields%get_field('liquid_fraction', liquid_fraction_aero)
       call cloud_fields%get_field('area_fraction', area_fraction_aero)
       call surface_fields%get_field('z0m', z0m_aero)
@@ -2114,7 +2123,7 @@ contains
                                           acc_ins_du,                          &
                                           n_cor_ins,                           &
                                           cor_ins_du,                          &
-                                          cloud_drop_no_conc,                  &
+                                          cloud_drop_no_conc_aero,             &
                                           drydp_ait_sol,                       &
                                           drydp_acc_sol,                       &
                                           drydp_cor_sol,                       &
@@ -2282,6 +2291,11 @@ contains
                                           emiss_om_biomass,                    &
                                           emiss_so2_nat,                       &
                                           photol_rates  ))
+
+    if ( coarse_rad_aerosol ) then
+      call map_scalar_intermesh(cloud_drop_no_conc, cloud_drop_no_conc_aero, &
+                                lowest_order_flag=lowest_order_aero_flag)
+    end if
 
     if ( LPROF ) call stop_timing( id_chem, 'ukca.chemistry_alg' )
     call um_sizes_init(1_i_def)
