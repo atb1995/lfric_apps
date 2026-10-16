@@ -25,7 +25,7 @@ module intermesh_mappings_alg_mod
   use fs_continuity_mod,              only : W2, Wtheta, W3
   use integer_field_mod,              only : integer_field_type
   
-  use log_mod,                        only : log_event, log_scratch_space, LOG_LEVEL_ERROR, LOG_LEVEL_INFO
+  use log_mod,                        only : log_event, log_scratch_space, LOG_LEVEL_ERROR, LOG_LEVEL_DEBUG
   use sci_field_minmax_alg_mod,       only: log_field_minmax
   use mesh_collection_mod,            only : mesh_collection
   use mesh_mod,                       only : mesh_type
@@ -139,8 +139,8 @@ contains
 
     call invoke( name='restrict_scalar_unweighted', &
             restrict_scalar_unweighted_kernel_type(target_field, source_field) )
-    call log_field_minmax(LOG_LEVEL_INFO, "source_field_res", source_field)
-    call log_field_minmax(LOG_LEVEL_INFO, "target_field_res", target_field)
+    call log_field_minmax(LOG_LEVEL_DEBUG, "source_field_res", source_field)
+    call log_field_minmax(LOG_LEVEL_DEBUG, "target_field_res", target_field)
 
   end subroutine restrict_scalar
 
@@ -167,8 +167,8 @@ contains
 
     call invoke_restrict_multidata_scalar_kernel_type(target_field, source_field, ndata)
 
-    call log_field_minmax(LOG_LEVEL_INFO, "source_field_multi", source_field)
-    call log_field_minmax(LOG_LEVEL_INFO, "target_field_multi", target_field)
+    call log_field_minmax(LOG_LEVEL_DEBUG, "source_field_multi", source_field)
+    call log_field_minmax(LOG_LEVEL_DEBUG, "target_field_multi", target_field)
 
   end subroutine restrict_multidata
 
@@ -370,10 +370,10 @@ contains
     end if
 
     call invoke( real_to_int_X(target_field_int, target_field) )
-    call log_field_minmax(LOG_LEVEL_INFO, "source_field", source_field)
-    call log_field_minmax(LOG_LEVEL_INFO, "target_field", target_field)
-    call log_field_minmax(LOG_LEVEL_INFO, "source_field_int", source_field_int)
-    call log_field_minmax(LOG_LEVEL_INFO, "target_field_int", target_field_int)
+    call log_field_minmax(LOG_LEVEL_DEBUG, "source_field", source_field)
+    call log_field_minmax(LOG_LEVEL_DEBUG, "target_field", target_field)
+    call log_field_minmax(LOG_LEVEL_DEBUG, "source_field_int", source_field_int)
+    call log_field_minmax(LOG_LEVEL_DEBUG, "target_field_int", target_field_int)
   end subroutine map_integer_intermesh
 
   !> @brief Alg for mapping W3/Wtheta integer fields between meshes
@@ -484,7 +484,7 @@ contains
           source_ncells, ', target_ncells=', target_ncells,               &
           ', ndata=', ndata, ', recovery_order=', recovery_order,         &
           ', reconstruction=', reconstruction
-      call log_event(log_scratch_space, LOG_LEVEL_INFO)
+      call log_event(log_scratch_space, LOG_LEVEL_DEBUG)
 
       recovery_order_arg = recovery_order
       if (present(lowest_order_flag)) then
@@ -498,7 +498,7 @@ contains
           ', lowest_order_flag_value=',                                  &
           lowest_order_flag_value,                                       &
           ', recovery_order_arg=', recovery_order_arg
-      call log_event(log_scratch_space, LOG_LEVEL_INFO)
+      call log_event(log_scratch_space, LOG_LEVEL_DEBUG)
 
       if (ndata > 1) then
         if (present(source_mask)) then
@@ -522,8 +522,8 @@ contains
       end if
     end if
   
-  call log_field_minmax(LOG_LEVEL_INFO, "source_field", source_field)
-  call log_field_minmax(LOG_LEVEL_INFO, "target_field", target_field)
+  call log_field_minmax(LOG_LEVEL_DEBUG, "source_field", source_field)
+  call log_field_minmax(LOG_LEVEL_DEBUG, "target_field", target_field)
 
   end subroutine map_scalar_intermesh
 
@@ -671,8 +671,8 @@ contains
 
       end if
     end if
-  call log_field_minmax(LOG_LEVEL_INFO, "source_field", source_field)
-  call log_field_minmax(LOG_LEVEL_INFO, "target_field", target_field)
+  call log_field_minmax(LOG_LEVEL_DEBUG, "source_field", source_field)
+  call log_field_minmax(LOG_LEVEL_DEBUG, "target_field", target_field)
 
   end subroutine map_rho_intermesh
 
@@ -998,8 +998,8 @@ contains
     end if
 
     do imr = 1, bundle_size
-      call log_field_minmax(LOG_LEVEL_INFO, "source_field", source_bundle(imr))
-      call log_field_minmax(LOG_LEVEL_INFO, "target_field", target_bundle(imr))
+      call log_field_minmax(LOG_LEVEL_DEBUG, "source_field", source_bundle(imr))
+      call log_field_minmax(LOG_LEVEL_DEBUG, "target_field", target_bundle(imr))
     end do
 
   end subroutine map_mr_bundle_intermesh
