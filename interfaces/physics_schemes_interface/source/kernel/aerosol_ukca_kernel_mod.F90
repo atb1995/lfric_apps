@@ -320,6 +320,7 @@ contains
 end type
 
 public aerosol_ukca_code
+private log_ukca_species_debug
 contains
 
 !> @brief UKCA GLOMAP-mode aerosol scheme time step.
@@ -4306,6 +4307,9 @@ subroutine aerosol_ukca_code( nlayers,                                         &
   previous_time(6) = int( previous_time_second, i_um )
   previous_time(7) = int( previous_time_daynum, i_um )
 
+  call log_ukca_species_debug('before UKCA: tracer', tracer_names, tracer)
+  call log_ukca_species_debug('before UKCA: ntp', ntp_names, ntp)
+
   call ukca_step_control( int( timestep_number, i_um ),                        &
                           current_time,                                        &
                           tracer,                                              &
@@ -4343,6 +4347,9 @@ subroutine aerosol_ukca_code( nlayers,                                         &
                           ! Optional output arguments
                           error_message=ukca_errmsg,                           &
                           error_routine=ukca_errproc )
+
+  call log_ukca_species_debug('after UKCA: tracer', tracer_names, tracer)
+  call log_ukca_species_debug('after UKCA: ntp', ntp_names, ntp)
 
   if (error_code > 0) then
     write( log_scratch_space, '(A)' )                                          &
@@ -5783,5 +5790,58 @@ subroutine aerosol_ukca_code( nlayers,                                         &
   deallocate( tracer )
 
 end subroutine aerosol_ukca_code
+
+!> Check every packed species; column and level are local UKCA array indices.
+subroutine log_ukca_species_debug(label, names, values)
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+  use constants_mod, only: r_um
+  use log_mod, only: log_event, log_level, log_scratch_space, LOG_LEVEL_DEBUG
+
+  implicit none
+
+  character(len=*), intent(in) :: label
+  character(len=*), intent(in) :: names(:)
+  real(r_um), intent(in) :: values(:,:,:,:)
+
+  integer :: i, j, k, m, n_bad, n_bad_species
+  integer :: first_i, first_j, first_k
+
+  if (log_level() > LOG_LEVEL_DEBUG) return
+
+  n_bad_species = 0
+  do m = 1, size(names)
+    n_bad = 0
+    first_i = 0
+    first_j = 0
+    first_k = 0
+    do k = 1, size(values, 3)
+      do j = 1, size(values, 2)
+        do i = 1, size(values, 1)
+          if (.not. ieee_is_finite(values(i,j,k,m))) then
+            if (n_bad == 0) then
+              first_i = i
+              first_j = j
+              first_k = k
+            end if
+            n_bad = n_bad + 1
+          end if
+        end do
+      end do
+    end do
+    if (n_bad > 0) then
+      n_bad_species = n_bad_species + 1
+      write(log_scratch_space, '(A,1X,A,A,I0,A,I0,A,I0,A,I0,A,ES16.8)') &
+        trim(label), trim(names(m)), ': nonfinite=', n_bad, &
+        ', first column=', first_i, ', row=', first_j, ', level=', first_k, &
+        ', value=', values(first_i,first_j,first_k,m)
+      call log_event(log_scratch_space, LOG_LEVEL_DEBUG)
+    end if
+  end do
+
+  write(log_scratch_space, '(A,A,I0,A,I0)') trim(label), &
+    ': checked species=', size(names), ', nonfinite species=', n_bad_species
+  call log_event(log_scratch_space, LOG_LEVEL_DEBUG)
+
+end subroutine log_ukca_species_debug
 
 end module aerosol_ukca_kernel_mod
