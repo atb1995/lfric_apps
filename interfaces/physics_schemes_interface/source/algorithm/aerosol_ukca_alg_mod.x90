@@ -634,6 +634,11 @@ contains
     ! 'required' environment fields in UKCA when chem_scheme=strattrop
     type( field_type ) :: conv_cloud_lwp
     type( field_type ) :: surf_albedo
+    ! Surface albedo on the physics mesh, mapped to the aerosol mesh
+    type( field_type ) :: surf_albedo_fine
+    ! Physics-mesh copies of photolysis diagnostics for output
+    type( field_type ) :: photol_rate_jo1d_fine
+    type( field_type ) :: photol_rate_jno2_fine
 
     ! For relative humidity calculation
     type( field_type ) :: msat
@@ -662,6 +667,8 @@ contains
     ! during the timestep)
     type( field_type ), pointer :: exner_in_wth ! Exner pressure in Wtheta
     type( field_type ), pointer :: w_in_wth     ! Vertical component of winds
+    type( field_type ), pointer :: w_in_wth_aero ! w_in_wth on aerosol mesh
+    type( field_type ), target  :: w_in_wth_coarse
     type( field_type ), pointer :: wetrho_in_w3 ! Wet density in W3
     type( field_type ), pointer :: wetrho_in_wth ! Wet density in WTHETA
 
@@ -976,6 +983,7 @@ contains
     nullify(level_ent_dsc_aero)
     nullify(mr_aero)
     nullify(mr_ice_aero)
+    nullify(w_in_wth_aero)
     nullify(wetrho_in_w3_aero)
     nullify(wetrho_in_wth_aero)
     nullify(ent_t_frac_dsc_aero)
@@ -1445,6 +1453,11 @@ contains
       
       call log_event( 'Mapping zh', LOG_LEVEL_INFO )
       call map_scalar_intermesh(zh_coarse, zh)
+
+      call log_event( 'Mapping w_in_wth', LOG_LEVEL_INFO )
+      call w_in_wth_coarse%initialise( wth_coarse, 'w_in_wth_coarse' )
+      call map_scalar_intermesh(w_in_wth_coarse, w_in_wth)
+      w_in_wth_aero => w_in_wth_coarse
       
       call log_event( 'Mapping rhokh_bl', LOG_LEVEL_INFO )
       call map_scalar_intermesh(rhokh_bl_coarse, rhokh_bl)
@@ -1782,6 +1795,7 @@ contains
       theta_aero => theta_coarse
       exner_aero => exner_coarse
       call derived_fields%get_field('exner_in_wth', exner_in_wth_aero)
+      w_in_wth_aero => w_in_wth
      
       call convection_fields%get_field('conv_rain_3d', conv_rain_3d_aero)
       call convection_fields%get_field('conv_snow_3d', conv_snow_3d_aero)
@@ -1845,6 +1859,20 @@ contains
 
     call um_sizes_init( ncells )
 
+    call log_sum_debug('ukca in: theta_aero', theta_aero)
+    call log_sum_debug('ukca in: exner_aero', exner_aero)
+    call log_sum_debug('ukca in: exner_in_wth_aero', exner_in_wth_aero)
+    call log_sum_debug('ukca in: w_in_wth_aero', w_in_wth_aero)
+    call log_sum_debug('ukca in: mr_aero(imr_v)', mr_aero(imr_v))
+    call log_sum_debug('ukca in: mr_aero(imr_cl)', mr_aero(imr_cl))
+    call log_sum_debug('ukca in: mr_ice_aero', mr_ice_aero)
+    call log_sum_debug('ukca in: cca_aero', cca_aero)
+    call log_sum_debug('ukca in: area_fraction_aero', area_fraction_aero)
+    call log_sum_debug('ukca in: bulk_fraction_aero', bulk_fraction_aero)
+    call log_sum_debug('ukca in: zh_aero', zh_aero)
+    call log_sum_debug('ukca in: tile_fraction_aero', tile_fraction_aero)
+    call log_sum_debug('ukca in: o3', o3)
+
     ! Calculate total ice field
     call mr(imr_s)%copy_field_properties(mr_ice)
     call invoke(setval_X(mr_ice, mr(imr_s)))
@@ -1852,16 +1880,17 @@ contains
       call invoke(inc_X_plus_Y(mr_ice, mr(imr_ci)))
     end if
 
-    ! Fields needed by UKCA and Photolysis
-    call zh%copy_field_properties(conv_cloud_lwp)
-    call zh%copy_field_properties(surf_albedo)
+    ! Fields needed by UKCA and Photolysis: on the aerosol mesh (coarse if
+    ! coarse_rad_aerosol, otherwise the physics mesh)
+    call zh_aero%copy_field_properties(conv_cloud_lwp)
+    call zh_aero%copy_field_properties(surf_albedo)
 
     call invoke( setval_c(conv_cloud_lwp, 0.0_r_def),                          &
                        setval_c(surf_albedo, 0.0_r_def) )
 
     ! Multi-dimensional field: photol_rates
-    vector_space=>function_space_collection%get_fs(mesh,0,0,Wtheta,            &
-                   get_ndata_val('photol_species') )
+    vector_space=>function_space_collection%get_fs(theta_aero%get_mesh(),      &
+                   0,0,Wtheta, get_ndata_val('photol_species') )
 
     call photol_rates%initialise(vector_space)
     call invoke( setval_c(photol_rates,    0.0_r_def) )
@@ -1871,8 +1900,8 @@ contains
       ! Photolysis currently linked to Strattrop      
 
       ! Sample Rates to output; wtheta grid
-      call ls_rain_3d%copy_field_properties(photol_rate_jo1d)
-      call ls_rain_3d%copy_field_properties(photol_rate_jno2)
+      call ls_rain_3d_aero%copy_field_properties(photol_rate_jo1d)
+      call ls_rain_3d_aero%copy_field_properties(photol_rate_jno2)
 
       call invoke( setval_c(photol_rate_jo1d,  0.0_r_def),                     &
                    setval_c(photol_rate_jno2,  0.0_r_def) )
@@ -1888,12 +1917,12 @@ contains
 
           ! Allocate and initialise required fields
           ! sulp_accum, sulp_aitken and aod preset to values same as UM.
-          call ls_rain_3d%copy_field_properties(sulp_accum)
-          call ls_rain_3d%copy_field_properties(sulp_aitken)
-          call ls_rain_3d%copy_field_properties(aod_sulp_accum)
-          call ls_rain_3d%copy_field_properties(aod_sulp_aitken)
-          call ls_rain_3d%copy_field_properties(photol_rates_rts_jo2)
-          call ls_rain_3d%copy_field_properties(photol_rates_rts_jo2b)
+          call ls_rain_3d_aero%copy_field_properties(sulp_accum)
+          call ls_rain_3d_aero%copy_field_properties(sulp_aitken)
+          call ls_rain_3d_aero%copy_field_properties(aod_sulp_accum)
+          call ls_rain_3d_aero%copy_field_properties(aod_sulp_aitken)
+          call ls_rain_3d_aero%copy_field_properties(photol_rates_rts_jo2)
+          call ls_rain_3d_aero%copy_field_properties(photol_rates_rts_jo2b)
           
           call invoke ( setval_c(sulp_accum,     1.0e-25_r_def),                &
                         setval_c(sulp_aitken,    1.0e-25_r_def),                &
@@ -1903,22 +1932,34 @@ contains
                         setval_c(photol_rates_rts_jo2b, 0.0_r_def) )
 
           ! Calculate Relative humidity (as fraction: 0.0-1.0)    
-          call mr(imr_v)%copy_field_properties(msat)
-          call mr(imr_v)%copy_field_properties(rel_humid_frac)
+          call mr_aero(imr_v)%copy_field_properties(msat)
+          call mr_aero(imr_v)%copy_field_properties(rel_humid_frac)
           call invoke( setval_c(msat,             0.0_r_def),                  &
                        setval_c(rel_humid_frac,   0.0_r_def),                  &
-                       msat_kernel_type(msat, exner_in_wth,                    &
-                                        state(igh_t), water_only),             &
-                       X_divideby_Y(rel_humid_frac, mr(imr_v), msat),          &
+                       msat_kernel_type(msat, exner_in_wth_aero,               &
+                                        theta_aero, water_only),               &
+                       X_divideby_Y(rel_humid_frac, mr_aero(imr_v), msat),     &
                        inc_max_aX(0.0_r_def, rel_humid_frac),                  &
                        inc_min_aX(1.0_r_def, rel_humid_frac) )
 
-          ! Derive required inputs, surface albedo first 
-          call invoke ( calc_albedo_kernel_type ( surf_albedo,                 &
+          ! Derive required inputs, surface albedo first: computed from
+          ! radiation fields on the physics mesh, then mapped if required
+          call zh%copy_field_properties(surf_albedo_fine)
+          call invoke ( setval_c(surf_albedo_fine, 0.0_r_def),                 &
+                        calc_albedo_kernel_type ( surf_albedo_fine,            &
                                             sw_down_surf,                      &
                                             tile_fraction,                     &
-                                            sw_up_tile),                       &
-                        photol_kernel_type ( photol_rates,                     &
+                                            sw_up_tile) )
+          if (coarse_rad_aerosol) then
+            call map_scalar_intermesh(surf_albedo, surf_albedo_fine)
+          else
+            call invoke( setval_X(surf_albedo, surf_albedo_fine) )
+          end if
+          call log_sum_debug('photol in: surf_albedo_fine', surf_albedo_fine)
+          call log_sum_debug('photol in: surf_albedo', surf_albedo)
+          call log_sum_debug('photol in: rel_humid_frac', rel_humid_frac)
+
+          call invoke ( photol_kernel_type ( photol_rates,                     &
                                             current_time_year,                 &
                                             current_time_month,                &
                                             current_time_day,                  &
@@ -1930,31 +1971,31 @@ contains
                                             previous_time_minute,              &
                                             previous_time_second,              &
                                             o3,                                &
-                                            state(igh_t),                      &
-                                            exner_in_wth,                      &
-                                            height_wth,                        &
-                                            mr(imr_cl),                        &
-                                            mr_ice,                            &
+                                            theta_aero,                        &
+                                            exner_in_wth_aero,                 &
+                                            height_wth_aero,                   &
+                                            mr_aero(imr_cl),                   &
+                                            mr_ice_aero,                       &
                                             rel_humid_frac,                    &
-                                            cca,                               &
-                                            area_fraction,                     &
+                                            cca_aero,                          &
+                                            area_fraction_aero,                &
                                             sulp_accum,                        &
                                             sulp_aitken,                       &
                                             aod_sulp_accum,                    &
                                             aod_sulp_aitken,                   &
                                             photol_rates_rts_jo2,              &
                                             photol_rates_rts_jo2b,             &
-                                            height_w3,                         &
-                                            state(igh_p),                      &
-                                            tile_fraction,                     &
-                                            latitude_w3,                       &
-                                            longitude_w3,                      &
-                                            sin_stellar_declination_rts,       &
-                                            stellar_eqn_of_time_rts,           &
+                                            height_w3_aero,                    &
+                                            exner_aero,                        &
+                                            tile_fraction_aero,                &
+                                            latitude_w3_aero,                  &
+                                            longitude_w3_aero,                 &
+                                            sin_stellar_declination_rts_aero,  &
+                                            stellar_eqn_of_time_rts_aero,      &
                                             conv_cloud_lwp,                    &
                                             surf_albedo,                       &
-                                            cv_base,                           &
-                                            cv_top ) )
+                                            cv_base_aero,                      &
+                                            cv_top_aero ) )
 
             ! Extract sample rates from full array for verification
             ! Currently only rates for O1D and NO2 output, so ignore others
@@ -1977,13 +2018,13 @@ contains
       
         ! Specified photolysis rates - based on location and local time
         if ( photol_scheme == photol_scheme_prescribed ) then
-          call ls_rain_3d%copy_field_properties(photol_rate_profile)
+          call ls_rain_3d_aero%copy_field_properties(photol_rate_profile)
 
           call invoke ( pseudo_photol_kernel_type ( photol_rate_profile,       &
                                                     current_time_hour,         &
                                                     current_time_minute,       &
-                                                    latitude_w3,               &
-                                                    longitude_w3 ) )
+                                                    latitude_w3_aero,          &
+                                                    longitude_w3_aero ) )
 
           ! Expand the single base rate profile to all the photolytic species
           ! (num=jppj) involved in this chemistry scheme by scaling the values
@@ -2202,7 +2243,7 @@ contains
                                          theta_aero,                        &
                                           exner_aero,                        &
                                           exner_in_wth_aero,                        &
-                                          w_in_wth,                            &
+                                          w_in_wth_aero,                       &
                                           mr_aero(imr_v),                           &
                                           mr_aero(imr_cl),                          &
                                           mr_ice_aero,                              &
@@ -2292,9 +2333,14 @@ contains
                                           emiss_so2_nat,                       &
                                           photol_rates  ))
 
+    call log_sum_debug('ukca in: photol_rates', photol_rates)
+    call log_sum_debug('ukca out: o3', o3)
+    call log_sum_debug('ukca out: cloud_drop_no_conc_aero', cloud_drop_no_conc_aero)
+
     if ( coarse_rad_aerosol ) then
       call map_scalar_intermesh(cloud_drop_no_conc, cloud_drop_no_conc_aero, &
                                 lowest_order_flag=lowest_order_aero_flag)
+      call log_sum_debug('ukca out: cloud_drop_no_conc (fine)', cloud_drop_no_conc)
     end if
 
     if ( LPROF ) call stop_timing( id_chem, 'ukca.chemistry_alg' )
@@ -2422,8 +2468,18 @@ contains
         call emiss_no_aircrft%write_field('chemistry__emiss_no_aircrft')
 
         if (photol_scheme /= photol_scheme_off )  then
-          call photol_rate_jo1d%write_field('chemistry__photol_rate_jo1d')
-          call photol_rate_jno2%write_field('chemistry__photol_rate_jno2')
+          if (coarse_rad_aerosol) then
+            ! Output photolysis diagnostics on the physics mesh
+            call ls_rain_3d%copy_field_properties(photol_rate_jo1d_fine)
+            call ls_rain_3d%copy_field_properties(photol_rate_jno2_fine)
+            call map_scalar_intermesh(photol_rate_jo1d_fine, photol_rate_jo1d)
+            call map_scalar_intermesh(photol_rate_jno2_fine, photol_rate_jno2)
+            call photol_rate_jo1d_fine%write_field('chemistry__photol_rate_jo1d')
+            call photol_rate_jno2_fine%write_field('chemistry__photol_rate_jno2')
+          else
+            call photol_rate_jo1d%write_field('chemistry__photol_rate_jo1d')
+            call photol_rate_jno2%write_field('chemistry__photol_rate_jno2')
+          end if
         end if  
       end if    ! chem_scheme_strattrop
 
@@ -2551,5 +2607,29 @@ contains
 
 
   end subroutine aerosol_ukca_alg
+
+  !> @brief Log a field's sum at DEBUG level (sum, unlike min/max, shows NaN)
+  !> @param[in] label Label for the log message
+  !> @param[in] field Field to log
+  subroutine log_sum_debug(label, field)
+    use field_mod,     only: field_type
+    use constants_mod, only: r_def
+    use log_mod,       only: log_event, log_level, log_scratch_space,        &
+                             LOG_LEVEL_DEBUG
+
+    implicit none
+
+    character(len=*), intent(in) :: label
+    type(field_type), intent(in) :: field
+
+    real(r_def) :: sum_field
+
+    if (log_level() <= LOG_LEVEL_DEBUG) then
+      call invoke( sum_X(sum_field, field) )
+      write(log_scratch_space,'(A,A,E16.8)') trim(label), ': Sum = ', sum_field
+      call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+    end if
+
+  end subroutine log_sum_debug
 
 end module aerosol_ukca_alg_mod
