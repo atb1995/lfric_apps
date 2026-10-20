@@ -2526,6 +2526,12 @@ subroutine aerosol_ukca_code( nlayers,                                         &
       ! Aerosol surface area is not used in this configuration but UKCA
       ! requires it to be present for potential use in diagnostic calculations.
       ! Pass zero for now pending UKCA API extension to support diagnostics.
+      do i = 1, seg_len
+        do k = 1, nlayers
+          ntp( i, 1, k, m ) =                                                  &
+            real( 0.0, r_um )
+        end do
+      end do
     case(fldname_drydp_ait_sol)
       do i = 1, seg_len
         do k = 1, nlayers
