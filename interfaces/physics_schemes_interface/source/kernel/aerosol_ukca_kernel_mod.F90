@@ -1235,6 +1235,7 @@ subroutine aerosol_ukca_code( nlayers,                                         &
   use planet_constants_mod, only: p_zero, kappa, planet_radius
   use timestep_mod,         only: timestep
   use atmos_ukca_humidity_mod, only: atmos_ukca_humidity
+  use, intrinsic :: iso_fortran_env, only: error_unit
 
   ! JULES modules
   use jules_surface_types_mod, only: npft, ntype
@@ -1585,6 +1586,8 @@ subroutine aerosol_ukca_code( nlayers,                                         &
   ! Prognostics to be updated in the time step (i,j,k,m)
   real(r_um), allocatable :: tracer(:,:,:,:) ! 3D Tracer fields
   real(r_um), allocatable :: tracer_before_ukca(:,:,:,:)
+  logical, save :: ukca_nan_dumped = .false.
+  integer(kind=i_def) :: nan_col, nan_ref, nan_lp, nan_ref_lp
   real(r_um), allocatable :: ntp(:,:,:,:)    ! 3D NTP fields
                                              ! (for microphysics & RADAER)
 
@@ -4362,6 +4365,23 @@ subroutine aerosol_ukca_code( nlayers,                                         &
                               timestep_number, tracer_before_ukca)
   call log_ukca_species_debug('after UKCA: ntp', ntp_names, ntp,              &
                               timestep_number)
+  if (.not. ukca_nan_dumped) then
+    nan_col = first_nonfinite_column(tracer)
+    if (nan_col > 0) then
+      ukca_nan_dumped = .true.
+      nan_ref = nan_col - 1
+      if (nan_ref < 1) nan_ref = min(nan_col + 1, seg_len)
+      nan_lp = 0
+      nan_ref_lp = 0
+      if (frac_land(nan_col) > 0.0_r_um) &
+        nan_lp = count(frac_land(1:nan_col) > 0.0_r_um)
+      if (frac_land(nan_ref) > 0.0_r_um) &
+        nan_ref_lp = count(frac_land(1:nan_ref) > 0.0_r_um)
+      call dump_ukca_column('BAD', nan_col, nan_lp)
+      call dump_ukca_column('REF', nan_ref, nan_ref_lp)
+    end if
+  end if
+
   deallocate( tracer_before_ukca )
 
   if (error_code > 0) then
@@ -5801,6 +5821,116 @@ subroutine aerosol_ukca_code( nlayers,                                         &
 
   deallocate( ntp )
   deallocate( tracer )
+
+contains
+
+  !> Dump every UKCA input for one column to stderr (debug only).
+  subroutine dump_ukca_column(tag, col, lp)
+    character(len=*), intent(in) :: tag
+    integer(kind=i_def), intent(in) :: col, lp
+    character(len=64) :: pre
+    integer :: m
+
+    write(pre,'(A,A,A,I0,A,I0)') 'UKCA_COL ', tag, ' step=', &
+      timestep_number, ' col=', col
+    write(error_unit,'(A,A,I0,A,L1,A,I0,A,ES16.8)') trim(pre), ' seg_len=',&
+      seg_len, ' land=', frac_land(col) > 0.0_r_um, ' land_pt=', lp, &
+      ' frac_land=', frac_land(col)
+    do m = 1, size(env_names_scalar_real)
+      write(error_unit,'(A,A,A,ES16.8)') trim(pre), ' scalar ', &
+        trim(env_names_scalar_real(m)), environ_scalar_real(m)
+    end do
+    do m = 1, size(env_names_flat_integer)
+      write(error_unit,'(A,A,A,1X,I0)') trim(pre), ' flat_int ', &
+        trim(env_names_flat_integer(m)), environ_flat_integer(col,1,m)
+    end do
+    do m = 1, size(env_names_flat_logical)
+      write(error_unit,'(A,A,A,1X,L1)') trim(pre), ' flat_log ', &
+        trim(env_names_flat_logical(m)), environ_flat_logical(col,1,m)
+    end do
+    call dump_flat(pre, col, 'flat_real', env_names_flat_real,              &
+                   environ_flat_real)
+    call dump_flat(pre, col, 'emiss_flat', emiss_names_flat, emissions_flat)
+    call dump_levels(pre, col, 'fullht', env_names_fullht_real,             &
+                     environ_fullht_real)
+    call dump_levels(pre, col, 'fullht0', env_names_fullht0_real, &
+                     environ_fullht0_real)
+    call dump_levels(pre, col, 'fullhtp1', env_names_fullhtp1_real, &
+                     environ_fullhtp1_real)
+    call dump_levels(pre, col, 'bllev', env_names_bllev_real,               &
+                     environ_bllev_real)
+    call dump_levels(pre, col, 'entlev', env_names_entlev_real,             &
+                     environ_entlev_real)
+    call dump_levels(pre, col, 'flatpft', env_names_flatpft_real, &
+                     environ_flatpft_real)
+    call dump_levels(pre, col, 'emiss_fullht', emiss_names_fullht,          &
+                     emissions_fullht)
+    call dump_levels(pre, col, 'tracer_before', tracer_names,               &
+                     tracer_before_ukca)
+    call dump_levels(pre, col, 'ntp_after', ntp_names, ntp)
+    if (lp > 0) then
+      do m = 1, size(env_names_land_real)
+        write(error_unit,'(A,A,A,ES16.8)') trim(pre), ' land ', &
+          trim(env_names_land_real(m)), environ_land_real(lp,m)
+      end do
+      do m = 1, size(env_names_landtile_real)
+        write(error_unit,'(A,A,A,2(1X,ES16.8),A,I0)') trim(pre), &
+          ' landtile ', trim(env_names_landtile_real(m)),        &
+          minval(environ_landtile_real(lp,:,m)),                 &
+          maxval(environ_landtile_real(lp,:,m)), ' nonfinite=',  &
+          count(.not. is_finite(environ_landtile_real(lp,:,m)))
+      end do
+      do m = 1, size(env_names_landpft_real)
+        write(error_unit,'(A,A,A,2(1X,ES16.8))') trim(pre), ' landpft ', &
+          trim(env_names_landpft_real(m)),                               &
+          minval(environ_landpft_real(lp,:,m)),                          &
+          maxval(environ_landpft_real(lp,:,m))
+      end do
+    end if
+  end subroutine dump_ukca_column
+
+  subroutine dump_flat(pre, c, group, names, values)
+    character(len=*), intent(in) :: pre, group
+    integer(kind=i_def), intent(in) :: c
+    character(len=*), intent(in) :: names(:)
+    real(r_um), intent(in) :: values(:,:,:)
+    integer :: m
+    do m = 1, min(size(names), size(values,3))
+      write(error_unit,'(A,1X,A,1X,A,1X,ES16.8)') trim(pre), group, &
+        trim(names(m)), values(c,1,m)
+    end do
+  end subroutine dump_flat
+
+  subroutine dump_levels(pre, c, group, names, values)
+    character(len=*), intent(in) :: pre, group
+    integer(kind=i_def), intent(in) :: c
+    character(len=*), intent(in) :: names(:)
+    real(r_um), intent(in) :: values(:,:,:,:)
+    integer :: m
+    do m = 1, min(size(names), size(values,4))
+      write(error_unit,'(A,1X,A,1X,A,3(1X,ES16.8),A,I0)') trim(pre), group, &
+        trim(names(m)), values(c,1,1,m), minval(values(c,1,:,m)),           &
+        maxval(values(c,1,:,m)), ' nonfinite=',                             &
+        count(.not. is_finite(values(c,1,:,m)))
+    end do
+  end subroutine dump_levels
+
+  elemental logical function is_finite(x)
+    real(r_um), intent(in) :: x
+    is_finite = .not. (x /= x .or. abs(x) > huge(x))
+  end function is_finite
+
+  integer function first_nonfinite_column(values)
+    real(r_um), intent(in) :: values(:,:,:,:)
+    integer :: i
+    first_nonfinite_column = 0
+    do i = 1, size(values,1)
+      if (any(.not. is_finite(values(i,:,:,:)))) then
+        first_nonfinite_column = i
+        return
+      end if
+    end do
+  end function first_nonfinite_column
 
 end subroutine aerosol_ukca_code
 
