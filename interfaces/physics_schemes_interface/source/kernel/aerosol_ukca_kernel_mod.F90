@@ -1584,6 +1584,7 @@ subroutine aerosol_ukca_code( nlayers,                                         &
 
   ! Prognostics to be updated in the time step (i,j,k,m)
   real(r_um), allocatable :: tracer(:,:,:,:) ! 3D Tracer fields
+  real(r_um), allocatable :: tracer_before_ukca(:,:,:,:)
   real(r_um), allocatable :: ntp(:,:,:,:)    ! 3D NTP fields
                                              ! (for microphysics & RADAER)
 
@@ -4313,8 +4314,11 @@ subroutine aerosol_ukca_code( nlayers,                                         &
   previous_time(6) = int( previous_time_second, i_um )
   previous_time(7) = int( previous_time_daynum, i_um )
 
-  call log_ukca_species_debug('before UKCA: tracer', tracer_names, tracer)
-  call log_ukca_species_debug('before UKCA: ntp', ntp_names, ntp)
+  call log_ukca_species_debug('before UKCA: tracer', tracer_names, tracer,    &
+                              timestep_number)
+  call log_ukca_species_debug('before UKCA: ntp', ntp_names, ntp,             &
+                              timestep_number)
+  allocate( tracer_before_ukca, source=tracer )
 
   call ukca_step_control( int( timestep_number, i_um ),                        &
                           current_time,                                        &
@@ -4354,8 +4358,11 @@ subroutine aerosol_ukca_code( nlayers,                                         &
                           error_message=ukca_errmsg,                           &
                           error_routine=ukca_errproc )
 
-  call log_ukca_species_debug('after UKCA: tracer', tracer_names, tracer)
-  call log_ukca_species_debug('after UKCA: ntp', ntp_names, ntp)
+  call log_ukca_species_debug('after UKCA: tracer', tracer_names, tracer,     &
+                              timestep_number, tracer_before_ukca)
+  call log_ukca_species_debug('after UKCA: ntp', ntp_names, ntp,              &
+                              timestep_number)
+  deallocate( tracer_before_ukca )
 
   if (error_code > 0) then
     write( log_scratch_space, '(A)' )                                          &
@@ -5798,21 +5805,29 @@ subroutine aerosol_ukca_code( nlayers,                                         &
 end subroutine aerosol_ukca_code
 
 !> Check every packed species; column and level are local UKCA array indices.
-subroutine log_ukca_species_debug(label, names, values)
-  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-  use constants_mod, only: r_um
+!> Non-finite hits are also written to stderr so that every MPI rank reports.
+subroutine log_ukca_species_debug(label, names, values, timestep, reference)
+  use, intrinsic :: iso_fortran_env, only: error_unit
+  use constants_mod, only: r_um, i_timestep
   use log_mod, only: log_event, log_level, log_scratch_space, LOG_LEVEL_DEBUG
+  use lfric_mpi_mod, only: global_mpi
 
   implicit none
 
   character(len=*), intent(in) :: label
   character(len=*), intent(in) :: names(:)
   real(r_um), intent(in) :: values(:,:,:,:)
+  integer(kind=i_timestep), intent(in) :: timestep
+  real(r_um), optional, intent(in) :: reference(:,:,:,:)
 
-  integer :: i, j, k, m, n_bad, n_bad_species
+  integer :: i, j, k, m, n_bad, n_bad_species, rank
   integer :: first_i, first_j, first_k
+  real(r_um) :: x
 
   if (log_level() > LOG_LEVEL_DEBUG) return
+
+  rank = -1
+  if (global_mpi%is_comm_set()) rank = global_mpi%get_comm_rank()
 
   n_bad_species = 0
   do m = 1, size(names)
@@ -5823,7 +5838,9 @@ subroutine log_ukca_species_debug(label, names, values)
     do k = 1, size(values, 3)
       do j = 1, size(values, 2)
         do i = 1, size(values, 1)
-          if (.not. ieee_is_finite(values(i,j,k,m))) then
+          x = values(i,j,k,m)
+          ! NaN or Inf only; subnormals are deliberately not flagged.
+          if (x /= x .or. abs(x) > huge(x)) then
             if (n_bad == 0) then
               first_i = i
               first_j = j
@@ -5841,6 +5858,18 @@ subroutine log_ukca_species_debug(label, names, values)
         ', first column=', first_i, ', row=', first_j, ', level=', first_k, &
         ', value=', values(first_i,first_j,first_k,m)
       call log_event(log_scratch_space, LOG_LEVEL_DEBUG)
+      write(error_unit, '(A,I0,A,I0,A,A)') 'UKCA_NAN rank=', rank, &
+        ' step=', timestep, ' ', trim(log_scratch_space)
+      if (present(reference)) then
+        write(error_unit, '(A,I0,A,I0,A,A,A,I0,A,I0)') 'UKCA_NAN rank=', &
+          rank, ' step=', timestep, ' column profile ', trim(names(m)), &
+          ' column=', first_i, ' row=', first_j
+        do k = 1, size(values, 3)
+          write(error_unit, '(A,I0,A,I0,A,I4,2(1X,ES16.8))') &
+            'UKCA_NAN rank=', rank, ' step=', timestep, ' k=', k, &
+            reference(first_i,first_j,k,m), values(first_i,first_j,k,m)
+        end do
+      end if
     end if
   end do
 
