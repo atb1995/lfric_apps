@@ -221,7 +221,7 @@ type, public, extends(kernel_type) :: aerosol_ukca_kernel_type
        arg_type( GH_SCALAR, GH_REAL, GH_READ ),             & ! atmospheric_n2o
        arg_type( GH_SCALAR, GH_REAL, GH_READ ),             & ! atmospheric_o2
        arg_type( GH_FIELD, GH_REAL, GH_READ, WTHETA ),      & ! theta_wth
-       arg_type( GH_FIELD, GH_REAL, GH_READ, WTHETA ),      & ! exner_in_w3
+       arg_type( GH_FIELD, GH_REAL, GH_READ, W3 ),      & ! exner_in_w3
        arg_type( GH_FIELD, GH_REAL, GH_READ, WTHETA ),      & ! exner_in_wth
        arg_type( GH_FIELD, GH_REAL, GH_READ, WTHETA ),      & ! u3_in_wth
        arg_type( GH_FIELD, GH_REAL, GH_READ, WTHETA ),      & ! m_v_n
@@ -258,7 +258,7 @@ type, public, extends(kernel_type) :: aerosol_ukca_kernel_type
        arg_type( GH_FIELD, GH_REAL, GH_READ, ANY_DISCONTINUOUS_SPACE_4 ), & ! stellar_eqn_of_time_rts
        arg_type( GH_FIELD, GH_REAL, GH_READ, ANY_DISCONTINUOUS_SPACE_4 ), & ! soil_roughness
        arg_type( GH_FIELD, GH_REAL, GH_READ, ANY_DISCONTINUOUS_SPACE_4 ), & ! z0m
-       arg_type( GH_FIELD, GH_REAL, GH_READ, ANY_DISCONTINUOUS_SPACE_1 ), & ! urbztm
+       arg_type( GH_FIELD, GH_REAL, GH_READ, ANY_DISCONTINUOUS_SPACE_4 ), & ! urbztm
        arg_type( GH_FIELD, GH_REAL, GH_READ, ANY_DISCONTINUOUS_SPACE_4 ), & ! ustar
        arg_type( GH_FIELD, GH_REAL, GH_READ, ANY_DISCONTINUOUS_SPACE_4 ), & ! wspd10m
        arg_type( GH_FIELD, GH_REAL, GH_READ, ANY_DISCONTINUOUS_SPACE_4 ), & ! chloro_sea
