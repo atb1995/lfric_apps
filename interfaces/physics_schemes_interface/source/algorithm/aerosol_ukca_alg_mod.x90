@@ -1563,7 +1563,6 @@ contains
 
       call log_event( 'Mapping canopy_height', LOG_LEVEL_INFO )
       call map_scalar_intermesh(canopy_height_coarse, canopy_height)
-      call round_to_integer(canopy_height_coarse)
 
       dust_flux_aero => dust_flux_coarse
       ent_we_lim_aero => ent_we_lim_coarse
@@ -1646,6 +1645,10 @@ contains
       ! Initialise Fields
       call wetrho_in_w3_coarse%initialise( w3_coarse, 'wetrho_in_w3_coarse')
       call wetrho_in_wth_coarse%initialise( wth_coarse, 'wetrho_in_wth_coarse')
+
+      w3_2d_multidata_coarse => function_space_collection%get_fs( aero_2d_mesh, &
+                                                              0, 0, W3, &
+                                                            get_ndata_val('entrainment_levels'))
       call ent_t_frac_dsc_coarse%initialise( w3_2d_multidata_coarse, 'ent_t_frac_dsc_coarse')
       call dtrdz_tq_bl_coarse%initialise( wth_coarse, 'dtrdz_tq_bl_coarse')
       call rho_in_wth_coarse%initialise(wth_coarse, 'rho_in_wth_coarse')
@@ -1773,6 +1776,7 @@ contains
       call microphysics_fields%get_field('accretion', accretion_aero)
       call microphysics_fields%get_field('rim_cry', rim_cry_aero)
       call microphysics_fields%get_field('rim_agg', rim_agg_aero)
+      
 
       wth_coarse => function_space_collection%get_fs( mesh,  0, 0, WTHETA )
       w3_coarse => function_space_collection%get_fs( mesh,  0, 0, W3 )
@@ -1808,6 +1812,7 @@ contains
       call cloud_fields%get_field('area_fraction', area_fraction_aero)
       call surface_fields%get_field('z0m', z0m_aero)
       call surface_fields%get_field('ustar', ustar_aero)
+      call surface_fields%get_field('urbztm', urbztm_aero)
       
       call turbulence_fields%get_field('zh', zh_aero)
       call turbulence_fields%get_field('rhokh_bl', rhokh_bl_aero)
