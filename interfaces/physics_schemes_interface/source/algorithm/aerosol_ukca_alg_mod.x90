@@ -1621,18 +1621,18 @@ contains
       ! rounded to nearest
       call log_event( 'Mapping ent', LOG_LEVEL_INFO )
       call map_integer_intermesh(level_ent_coarse, level_ent, aero_mesh, mesh, &
-                                 level_min=2_i_def,                        &
-                                 level_max=mesh%get_nlayers())
+                                 level_min_int=2_i_def,                        &
+                                 level_max_int=mesh%get_nlayers())
 
       ! level_ent_dsc = ntdsc + 1 holds 1 or 2 when there is no decoupled
       ! layer, and >= 3 when there is one (tr_mix tests kent_dsc > 2).
       ! Average over the cells with a decoupled layer only; if none, use 2.
       call log_event( 'Mapping ent_dsc', LOG_LEVEL_INFO )
       call map_integer_intermesh(level_ent_dsc_coarse, level_ent_dsc, aero_mesh, mesh, &
-                                 valid_above=2_i_def,                      &
-                                 level_min=3_i_def,                        &
-                                 level_max=mesh%get_nlayers(),             &
-                                 none_value=2_i_def)
+                                 valid_above_int=2_i_def,                      &
+                                 level_min_int=3_i_def,                        &
+                                 level_max_int=mesh%get_nlayers(),             &
+                                 none_value_int=2_i_def)
 
       cv_base_aero => cv_base_coarse
       cv_top_aero => cv_top_coarse

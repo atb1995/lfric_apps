@@ -386,14 +386,14 @@ contains
   !> @param[in]     source_field_int  Source field
   !> @param[in]     target_mesh       Target mesh
   !> @param[in]     source_mesh       Source mesh
-  !> @param[in]     valid_above       Optional: a cell is valid if value > this
-  !> @param[in]     level_min         Optional lower clamp
-  !> @param[in]     level_max         Optional upper clamp
-  !> @param[in]     none_value        Optional value where no cell is valid
+  !> @param[in]     valid_above_int       Optional: a cell is valid if value > this
+  !> @param[in]     level_min_int         Optional lower clamp
+  !> @param[in]     level_max_int         Optional upper clamp
+  !> @param[in]     none_value_int        Optional value where no cell is valid
   subroutine map_integer_intermesh( target_field_int, source_field_int,    &
                                     target_mesh, source_mesh,              &
-                                    valid_above, level_min, level_max,     &
-                                    none_value )
+                                    valid_above_int, level_min_int, level_max_int,     &
+                                    none_value_int )
 
     implicit none
 
@@ -401,10 +401,10 @@ contains
     type(integer_field_type),           intent(inout) :: target_field_int
     type(mesh_type),                    intent(in)    :: source_mesh
     type(mesh_type),                    intent(in)    :: target_mesh
-    integer(kind=i_def), optional,      intent(in)    :: valid_above
-    integer(kind=i_def), optional,      intent(in)    :: level_min
-    integer(kind=i_def), optional,      intent(in)    :: level_max
-    integer(kind=i_def), optional,      intent(in)    :: none_value
+    integer(kind=i_def), optional,      intent(in)    :: valid_above_int
+    integer(kind=i_def), optional,      intent(in)    :: level_min_int
+    integer(kind=i_def), optional,      intent(in)    :: level_max_int
+    integer(kind=i_def), optional,      intent(in)    :: none_value_int
 
     type(field_type)                   :: source_field
     type(field_type)                   :: target_field
@@ -418,10 +418,10 @@ contains
     lo        = -huge(1.0_r_def)
     hi        =  huge(1.0_r_def)
     none_val  = 0.0_r_def
-    if (present(valid_above)) threshold = real(valid_above, r_def)
-    if (present(level_min))   lo        = real(level_min, r_def)
-    if (present(level_max))   hi        = real(level_max, r_def)
-    if (present(none_value))  none_val  = real(none_value, r_def)
+    if (present(valid_above_int)) threshold = real(valid_above_int, r_def)
+    if (present(level_min_int))   lo        = real(level_min_int, r_def)
+    if (present(level_max_int))   hi        = real(level_max_int, r_def)
+    if (present(none_value_int))  none_val  = real(none_value_int, r_def)
 
     fs_source => source_field_int%get_function_space()
     fs_target => target_field_int%get_function_space()
