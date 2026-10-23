@@ -326,6 +326,7 @@ contains
     real(kind=r_def), optional, intent(in)    :: none_value
 
     type(field_type)                   :: mask_source, value_source
+    type(field_type)                   :: valid_source
     type(field_type)                   :: mask_target, value_target
     type(mesh_type), pointer           :: source_mesh
     type(mesh_type), pointer           :: target_mesh
@@ -352,15 +353,18 @@ contains
     call mask_target%initialise( vector_space = fs_target )
     call value_target%initialise( vector_space = fs_target )
 
+    ! The kernel needs distinct fields for the values and for the validity
+    ! test, so always take a local copy of whichever field decides validity
+    call valid_source%initialise( vector_space = fs_source )
     if (present(valid_field)) then
-      call invoke( level_valid_mask_kernel_type(mask_source, value_source, &
-                                                source_field, valid_field, &
-                                                threshold) )
+      call invoke( setval_X(valid_source, valid_field) )
     else
-      call invoke( level_valid_mask_kernel_type(mask_source, value_source, &
-                                                source_field, source_field,&
-                                                threshold) )
+      call invoke( setval_X(valid_source, source_field) )
     end if
+
+    call invoke( level_valid_mask_kernel_type(mask_source, value_source, &
+                                              source_field, valid_source, &
+                                              threshold) )
 
     if ( source_mesh%get_ncells() == target_mesh%get_ncells() ) then
       call invoke( setval_X(mask_target, mask_source),   &
