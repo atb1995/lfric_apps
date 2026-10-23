@@ -67,6 +67,7 @@ module intermesh_mappings_alg_mod
   public  :: map_mr_bundle_intermesh   ! Public routine for mapping mr bundle
   public  :: apply_mr_incs             ! Maps and applies moisture increments
   public  :: map_mr_intermesh          ! Public routine for mapping single mixing ratio fields
+  public  :: map_mr_inc_intermesh      ! Restricts a fine-mesh mixing ratio increment onto a coarse state
   public  :: map_integer_intermesh      ! Public routine for integer 2D level-index fields
   public  :: map_level_index_intermesh  ! Masked-mean mapping of real-valued level-index fields
   public  :: round_to_integer
@@ -1180,6 +1181,84 @@ contains
     end if
 
   end subroutine map_mr_intermesh
+
+  !> @brief Restricts the change made on a fine mesh to a coarse mixing ratio
+  !> @details The coarse state was earlier prolonged to the fine mesh, then
+  !!          modified there (e.g. by convection). Rather than overwriting the
+  !!          coarse state with the restricted fine state, which smooths it,
+  !!          this restricts only the increment and adds it to the coarse
+  !!          state: coarse_mr = coarse_mr + R(fine_mr_np1 - P(coarse_mr)).
+  !!          The prolongation P is recomputed here from the unchanged coarse
+  !!          state, so it matches the one used before the fine-mesh update.
+  !!          Conservative (density weighted) restriction is used unless
+  !!          moisture is advective. The result is clipped at zero.
+  !> @param[in]     config       Application namelist configuration object
+  !> @param[in,out] coarse_mr    Coarse mixing ratio, updated in place
+  !> @param[in]     fine_mr_np1  Fine mixing ratio after the fine-mesh update
+  !> @param[in]     coarse_rho   Dry density on the coarse mesh
+  !> @param[in]     fine_rho     Dry density on the fine mesh
+  subroutine map_mr_inc_intermesh( config, coarse_mr, fine_mr_np1, &
+                                   coarse_rho, fine_rho )
+
+    implicit none
+
+    type(config_type), intent(in) :: config
+
+    type(field_type), intent(inout) :: coarse_mr
+    type(field_type), intent(in)    :: fine_mr_np1
+    type(field_type), intent(in)    :: coarse_rho
+    type(field_type), intent(in)    :: fine_rho
+
+    type(mesh_type),           pointer :: fine_mesh
+    type(mesh_type),           pointer :: coarse_mesh
+    type(function_space_type), pointer :: fs_fine
+    type(function_space_type), pointer :: fs_coarse
+    type(field_type)                   :: fine_mr_before
+    type(field_type)                   :: fine_mr_inc
+    type(field_type)                   :: coarse_mr_inc
+    type(field_type)                   :: coarse_rho_sh_w3
+    type(field_type)                   :: fine_rho_sh_w3
+    logical(kind=l_def)                :: moisture_advective
+
+    fine_mesh   => fine_mr_np1%get_mesh()
+    coarse_mesh => coarse_mr%get_mesh()
+
+    if ( fine_mesh%get_ncells() <= coarse_mesh%get_ncells() ) then
+      ! Not a restriction, so there is nothing to gain from using increments
+      call map_mr_intermesh( config, coarse_mr, fine_mr_np1, &
+                             coarse_rho, fine_rho )
+    else
+      fs_fine   => fine_mr_np1%get_function_space()
+      fs_coarse => coarse_mr%get_function_space()
+
+      call fine_mr_before%initialise( vector_space = fs_fine )
+      call fine_mr_inc%initialise( vector_space = fs_fine )
+      call coarse_mr_inc%initialise( vector_space = fs_coarse )
+
+      ! Recompute the fine state that the fine-mesh update started from
+      call map_mr_intermesh( config, fine_mr_before, coarse_mr, &
+                             fine_rho, coarse_rho )
+
+      ! Increment made on the fine mesh
+      call invoke( X_minus_Y(fine_mr_inc, fine_mr_np1, fine_mr_before) )
+
+      ! Restrict the increment
+      moisture_advective = check_moisture_advective()
+      if ( moisture_advective ) then
+        call restrict_scalar( coarse_mr_inc, fine_mr_inc )
+      else
+        call obtain_shifted_rho( config, coarse_rho_sh_w3, coarse_rho )
+        call obtain_shifted_rho( config, fine_rho_sh_w3, fine_rho )
+        call restrict_mr( coarse_mr_inc, fine_mr_inc, &
+                          coarse_rho_sh_w3, fine_rho_sh_w3 )
+      end if
+
+      ! Apply it to the coarse state and keep it non-negative
+      call invoke( inc_X_plus_Y(coarse_mr, coarse_mr_inc),              &
+                   enforce_lower_bound_kernel_type(coarse_mr, 0.0_r_def) )
+    end if
+
+  end subroutine map_mr_inc_intermesh
 
   !> @brief Maps and applies mixing ratio increments
   !> @details Maps mixing ratio increments calculated on one mesh (e.g. a mesh

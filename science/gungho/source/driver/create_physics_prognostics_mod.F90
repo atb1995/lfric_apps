@@ -1194,7 +1194,8 @@ contains
       call processor%apply(make_spec('emiss_no', main%chemistry, W3, twod=.true., &
       coarse=coarse_rad_aerosol, coarse_mesh_name=mesh_name,                   &
           ckp=checkpoint_flag, empty=is_empty))
-      call processor%apply(make_spec('emiss_meoh', main%chemistry,             &
+      call processor%apply(make_spec('emiss_meoh', main%chemistry, W3, twod=.true., &
+      coarse=coarse_rad_aerosol, coarse_mesh_name=mesh_name,                   &
           ckp=checkpoint_flag, empty=is_empty))
       ! 3-D emissions
       call processor%apply(make_spec('emiss_no_aircrft', main%chemistry, Wtheta, &
