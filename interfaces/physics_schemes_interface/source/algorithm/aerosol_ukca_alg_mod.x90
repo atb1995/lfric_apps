@@ -14,7 +14,7 @@ module aerosol_ukca_alg_mod
                                              map_rho_intermesh,     &
                                              map_integer_intermesh, &
                                              map_mr_bundle_intermesh, &
-                                             round_to_integer
+                                             map_level_index_intermesh
   use multires_coupling_config_mod,    only: lowest_order_aero_flag, &
                                              coarse_rad_aerosol
   use initialization_config_mod,  only: coarse_aerosol_ancil
@@ -1594,23 +1594,45 @@ contains
 
       call invoke( setval_c(cv_base_coarse, 0.0_r_def), &
                   setval_c(cv_top_coarse, 0.0_r_def) )
-      call log_event( 'Mapping cv_base', LOG_LEVEL_INFO )
-      call map_scalar_intermesh(cv_base_coarse, cv_base, lowest_order_flag=.true.)
-      
-      call log_event( 'Mapping cv_top', LOG_LEVEL_INFO )
-      call map_scalar_intermesh(cv_top_coarse, cv_top, lowest_order_flag=.true.)
 
-      ! Round to nearest integer
-      call round_to_integer(cv_top_coarse)
-      call round_to_integer(cv_base_coarse)
+      ! cv_base / cv_top are model level numbers of the highest convection in
+      ! the column, and are 0 where there is none. Average them over the fine
+      ! cells that contain convection only (cv_top > 0), using the same mask
+      ! for both so base <= top is preserved, round to nearest, and clamp to
+      ! valid levels. Coarse columns with no convective fine cell stay at 0.
+      call log_event( 'Mapping cv_base', LOG_LEVEL_INFO )
+      call map_level_index_intermesh(cv_base_coarse, cv_base,              &
+                                     valid_field=cv_top, valid_above=0.0_r_def, &
+                                     level_min=1.0_r_def,                  &
+                                     level_max=real(mesh%get_nlayers(), r_def), &
+                                     none_value=0.0_r_def)
+
+      call log_event( 'Mapping cv_top', LOG_LEVEL_INFO )
+      call map_level_index_intermesh(cv_top_coarse, cv_top,                &
+                                     valid_field=cv_top, valid_above=0.0_r_def, &
+                                     level_min=1.0_r_def,                  &
+                                     level_max=real(mesh%get_nlayers(), r_def), &
+                                     none_value=0.0_r_def)
+
       call log_field_minmax(LOG_LEVEL_INFO, 'cv_base_coarse', cv_base_coarse)
       call log_field_minmax(LOG_LEVEL_INFO, 'cv_top_coarse', cv_top_coarse)
-      
+
+      ! level_ent = ntml + 1 is always a real level (>= 2): plain mean,
+      ! rounded to nearest
       call log_event( 'Mapping ent', LOG_LEVEL_INFO )
-      call map_integer_intermesh(level_ent_coarse, level_ent, aero_mesh, mesh)
-      
+      call map_integer_intermesh(level_ent_coarse, level_ent, aero_mesh, mesh, &
+                                 level_min=2_i_def,                        &
+                                 level_max=mesh%get_nlayers())
+
+      ! level_ent_dsc = ntdsc + 1 holds 1 or 2 when there is no decoupled
+      ! layer, and >= 3 when there is one (tr_mix tests kent_dsc > 2).
+      ! Average over the cells with a decoupled layer only; if none, use 2.
       call log_event( 'Mapping ent_dsc', LOG_LEVEL_INFO )
-      call map_integer_intermesh(level_ent_dsc_coarse, level_ent_dsc, aero_mesh, mesh)
+      call map_integer_intermesh(level_ent_dsc_coarse, level_ent_dsc, aero_mesh, mesh, &
+                                 valid_above=2_i_def,                      &
+                                 level_min=3_i_def,                        &
+                                 level_max=mesh%get_nlayers(),             &
+                                 none_value=2_i_def)
 
       cv_base_aero => cv_base_coarse
       cv_top_aero => cv_top_coarse

@@ -67,7 +67,8 @@ module intermesh_mappings_alg_mod
   public  :: map_mr_bundle_intermesh   ! Public routine for mapping mr bundle
   public  :: apply_mr_incs             ! Maps and applies moisture increments
   public  :: map_mr_intermesh          ! Public routine for mapping single mixing ratio fields
-  public  :: map_integer_intermesh      ! Public routine for integer W3/Wtheta fields
+  public  :: map_integer_intermesh      ! Public routine for integer 2D level-index fields
+  public  :: map_level_index_intermesh  ! Masked-mean mapping of real-valued level-index fields
   public  :: round_to_integer
 contains
 
@@ -288,48 +289,138 @@ contains
 
   end subroutine prolong_scalar_reversible
 
-  !> @brief Alg for mapping W3/Wtheta integer fields between meshes
-  !> @details This routine maps a W3 or Wtheta field non-conservatively between
-  !!          meshes, according to the namelist options. It is appropriate for
-  !!          fields such as pressure or potential temperature fields. Based on
-  !!          the mesh of the source and target fields, this will call the
-  !!          appropriate restriction / prolongation routines.
-  !> @param[in,out] target_field       Target field
-  !> @param[in]     source_field       Source field
-  subroutine map_integer_intermesh( target_field_int, source_field_int, target_mesh, source_mesh )
+  !> @brief Maps a 2D level-index field between meshes using a masked mean
+  !> @details Level indices must not be averaged naively: cells that hold a
+  !!          "none" value (e.g. 0 for no convection) would corrupt the mean,
+  !!          and truncating the mean biases it low. On restriction this takes
+  !!          the mean over the fine cells where valid_field > valid_above,
+  !!          rounds to nearest and clamps to [level_min, level_max]. Where no
+  !!          fine cell is valid the result is none_value. Mapping to a finer
+  !!          mesh is by injection (constant recovery). Defaults treat every
+  !!          cell as valid and apply no clamp.
+  !> @param[in,out] target_field  Target field (stores level as a real)
+  !> @param[in]     source_field  Source field (stores level as a real)
+  !> @param[in]     valid_field   Optional field deciding validity (default
+  !!                              source_field); pass the same one for
+  !!                              related fields (e.g. cv_base and cv_top)
+  !> @param[in]     valid_above   Optional validity threshold
+  !> @param[in]     level_min     Optional lower clamp
+  !> @param[in]     level_max     Optional upper clamp
+  !> @param[in]     none_value    Optional value where no cell is valid
+  subroutine map_level_index_intermesh( target_field, source_field,         &
+                                        valid_field, valid_above,           &
+                                        level_min, level_max, none_value )
 
+    use level_valid_mask_kernel_mod,  only: level_valid_mask_kernel_type
+    use level_masked_mean_kernel_mod, only: level_masked_mean_kernel_type
 
     implicit none
 
-    type(integer_field_type),              intent(in)    :: source_field_int
-    type(integer_field_type),              intent(inout) :: target_field_int
-    type(mesh_type),              intent(in)  :: source_mesh
-    type(mesh_type),              intent(in)   :: target_mesh
+    type(field_type),           intent(inout) :: target_field
+    type(field_type),           intent(in)    :: source_field
+    type(field_type), optional, intent(in)    :: valid_field
+    real(kind=r_def), optional, intent(in)    :: valid_above
+    real(kind=r_def), optional, intent(in)    :: level_min
+    real(kind=r_def), optional, intent(in)    :: level_max
+    real(kind=r_def), optional, intent(in)    :: none_value
 
-    type(field_type) :: source_field
-    type(field_type) :: target_field
-
-    type(mesh_type), pointer  :: source_mesh_2d
-    type(field_type)          :: source_mask_temp
-    integer(kind=i_def)       :: source_ncells
-    integer(kind=i_def)       :: target_ncells
-    integer(kind=i_def)       :: recovery_order_arg
-    integer(kind=i_def)       :: ndata, nlayers
-    type(function_space_type), pointer :: fs_type
-    type(function_space_type), pointer :: fs_source_2d
-
+    type(field_type)                   :: mask_source, value_source
+    type(field_type)                   :: mask_target, value_target
+    type(mesh_type), pointer           :: source_mesh
+    type(mesh_type), pointer           :: target_mesh
     type(function_space_type), pointer :: fs_source
     type(function_space_type), pointer :: fs_target
-    integer(kind=i_def) :: element_order_h
-    integer(kind=i_def) :: element_order_v
+    real(kind=r_def)                   :: threshold, lo, hi, none_val
 
-    element_order_h = target_field_int%get_element_order_h()
-    element_order_v = target_field_int%get_element_order_v()
+    threshold = -huge(1.0_r_def)
+    lo        = -huge(1.0_r_def)
+    hi        =  huge(1.0_r_def)
+    none_val  = 0.0_r_def
+    if (present(valid_above)) threshold = valid_above
+    if (present(level_min))   lo        = level_min
+    if (present(level_max))   hi        = level_max
+    if (present(none_value))  none_val  = none_value
 
-    ! Get source and target mesh ids and meshes
-    source_mesh_2d => mesh_collection%get_mesh(source_mesh, TWOD)
+    source_mesh => source_field%get_mesh()
+    target_mesh => target_field%get_mesh()
+    fs_source => source_field%get_function_space()
+    fs_target => target_field%get_function_space()
 
-    fs_source_2d => function_space_collection%get_fs(source_mesh_2d, element_order_h, element_order_v, W3)
+    call mask_source%initialise( vector_space = fs_source )
+    call value_source%initialise( vector_space = fs_source )
+    call mask_target%initialise( vector_space = fs_target )
+    call value_target%initialise( vector_space = fs_target )
+
+    if (present(valid_field)) then
+      call invoke( level_valid_mask_kernel_type(mask_source, value_source, &
+                                                source_field, valid_field, &
+                                                threshold) )
+    else
+      call invoke( level_valid_mask_kernel_type(mask_source, value_source, &
+                                                source_field, source_field,&
+                                                threshold) )
+    end if
+
+    if ( source_mesh%get_ncells() == target_mesh%get_ncells() ) then
+      call invoke( setval_X(mask_target, mask_source),   &
+                   setval_X(value_target, value_source) )
+    else if ( source_mesh%get_ncells() > target_mesh%get_ncells() ) then
+      call restrict_scalar(mask_target, mask_source)
+      call restrict_scalar(value_target, value_source)
+    else
+      call prolong_scalar_simple(mask_target, mask_source, recovery_order_constant)
+      call prolong_scalar_simple(value_target, value_source, recovery_order_constant)
+    end if
+
+    call invoke( level_masked_mean_kernel_type(target_field, value_target, &
+                                               mask_target, lo, hi, none_val) )
+
+  end subroutine map_level_index_intermesh
+
+  !> @brief Alg for mapping 2D W3 integer level-index fields between meshes
+  !> @details Wraps map_level_index_intermesh for integer fields. See that
+  !!          routine for the masked-mean behaviour. Defaults treat every
+  !!          cell as valid with no clamp, but always round to nearest.
+  !> @param[in,out] target_field_int  Target field
+  !> @param[in]     source_field_int  Source field
+  !> @param[in]     target_mesh       Target mesh
+  !> @param[in]     source_mesh       Source mesh
+  !> @param[in]     valid_above       Optional: a cell is valid if value > this
+  !> @param[in]     level_min         Optional lower clamp
+  !> @param[in]     level_max         Optional upper clamp
+  !> @param[in]     none_value        Optional value where no cell is valid
+  subroutine map_integer_intermesh( target_field_int, source_field_int,    &
+                                    target_mesh, source_mesh,              &
+                                    valid_above, level_min, level_max,     &
+                                    none_value )
+
+    implicit none
+
+    type(integer_field_type),           intent(in)    :: source_field_int
+    type(integer_field_type),           intent(inout) :: target_field_int
+    type(mesh_type),                    intent(in)    :: source_mesh
+    type(mesh_type),                    intent(in)    :: target_mesh
+    integer(kind=i_def), optional,      intent(in)    :: valid_above
+    integer(kind=i_def), optional,      intent(in)    :: level_min
+    integer(kind=i_def), optional,      intent(in)    :: level_max
+    integer(kind=i_def), optional,      intent(in)    :: none_value
+
+    type(field_type)                   :: source_field
+    type(field_type)                   :: target_field
+    type(function_space_type), pointer :: fs_source
+    type(function_space_type), pointer :: fs_target
+    real(kind=r_def)                   :: threshold, lo, hi, none_val
+
+    ! A threshold just below the smallest representable integer marks all
+    ! cells as valid
+    threshold = -huge(1.0_r_def)
+    lo        = -huge(1.0_r_def)
+    hi        =  huge(1.0_r_def)
+    none_val  = 0.0_r_def
+    if (present(valid_above)) threshold = real(valid_above, r_def)
+    if (present(level_min))   lo        = real(level_min, r_def)
+    if (present(level_max))   hi        = real(level_max, r_def)
+    if (present(none_value))  none_val  = real(none_value, r_def)
 
     fs_source => source_field_int%get_function_space()
     fs_target => target_field_int%get_function_space()
@@ -337,43 +428,18 @@ contains
     call source_field%initialise( vector_space = fs_source )
     call target_field%initialise( vector_space = fs_target )
 
-    call invoke( int_to_real_X (source_field, source_field_int) )
+    call invoke( int_to_real_X(source_field, source_field_int) )
 
-    nlayers = source_mesh%get_nlayers()
+    call map_level_index_intermesh( target_field, source_field,            &
+                                    valid_above=threshold, level_min=lo,   &
+                                    level_max=hi, none_value=none_val )
 
-    fs_type => source_field%get_function_space()
-    ndata = fs_type%get_ndata()
-
-    ! Figure out which of the meshes has fewer cells
-    source_ncells = source_mesh%get_ncells()
-    target_ncells = target_mesh%get_ncells()
-
-    if ( source_ncells == target_ncells ) then
-
-      call invoke( setval_X(target_field, source_field))
-
-    else if ( source_ncells > target_ncells ) then
-      if (ndata > 1) then
-        call restrict_multidata(target_field, source_field)
-      else
-        call restrict_scalar(target_field, source_field)
-      end if
-
-    else
-      if (ndata > 1) then
-        call source_mask_temp%initialise( vector_space = fs_source_2d )
-        call invoke( setval_c(source_mask_temp, 1.0_r_def))
-        call prolong_multidata_simple(target_field, source_field, source_mask_temp, recovery_order_arg)
-      else
-          call prolong_scalar_simple(target_field, source_field, recovery_order_arg)
-      end if
-    end if
-
+    ! Values are already whole numbers, so this conversion is exact
     call invoke( real_to_int_X(target_field_int, target_field) )
-    call log_field_minmax(LOG_LEVEL_DEBUG, "source_field", source_field)
-    call log_field_minmax(LOG_LEVEL_DEBUG, "target_field", target_field)
+
     call log_field_minmax(LOG_LEVEL_DEBUG, "source_field_int", source_field_int)
     call log_field_minmax(LOG_LEVEL_DEBUG, "target_field_int", target_field_int)
+
   end subroutine map_integer_intermesh
 
   !> @brief Alg for mapping W3/Wtheta integer fields between meshes
