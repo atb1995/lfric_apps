@@ -344,10 +344,6 @@ contains
                                             cloud_drop_no_conc_aero ))
     if ( coarse_rad_aerosol ) then
       call map_scalar_intermesh(cloud_drop_no_conc, cloud_drop_no_conc_aero, lowest_order_flag=lowest_order_aero_flag)
-      call map_scalar_intermesh(n_acc_ins, n_acc_ins_aero, lowest_order_flag=lowest_order_aero_flag)
-      call map_scalar_intermesh(acc_ins_du, acc_ins_du_aero, lowest_order_flag=lowest_order_aero_flag)
-      call map_scalar_intermesh(n_cor_ins, n_cor_ins_aero, lowest_order_flag=lowest_order_aero_flag)
-      call map_scalar_intermesh(cor_ins_du, cor_ins_du_aero, lowest_order_flag=lowest_order_aero_flag)
     end if
     if ( LPROF ) call stop_timing( id_alg, 'aerosol.glomap_clim' )
 
