@@ -257,10 +257,10 @@ contains
       call cloud_fields%get_field('bulk_fraction', cf_bulk_aero)
       call cloud_fields%get_field('liquid_fraction', cf_liquid_aero)
       call aerosol_fields%get_field('cloud_drop_no_conc', cloud_drop_no_conc_aero)
-      n_acc_ins_aero => n_acc_ins
-      acc_ins_du_aero => acc_ins_du
-      n_cor_ins_aero => n_cor_ins
-      cor_ins_du_aero => cor_ins_du
+      call aerosol_fields%get_field('n_acc_ins', n_acc_ins_aero)
+      call aerosol_fields%get_field('acc_ins_du', acc_ins_du_aero)
+      call aerosol_fields%get_field('n_cor_ins', n_cor_ins_aero)
+      call aerosol_fields%get_field('cor_ins_du', cor_ins_du_aero)
     end if
 
     ! Calculate total ice field
@@ -347,10 +347,6 @@ contains
                                             cloud_drop_no_conc_aero ))
     if ( coarse_rad_aerosol ) then
       call map_scalar_intermesh(cloud_drop_no_conc, cloud_drop_no_conc_aero, lowest_order_flag=lowest_order_aero_flag)
-      call map_mr_intermesh(config, n_acc_ins, n_acc_ins_aero, rho, rho_aero)
-      call map_mr_intermesh(config, acc_ins_du, acc_ins_du_aero, rho, rho_aero)
-      call map_mr_intermesh(config, n_cor_ins, n_cor_ins_aero, rho, rho_aero)
-      call map_mr_intermesh(config, cor_ins_du, cor_ins_du_aero, rho, rho_aero)
     end if
     if ( LPROF ) call stop_timing( id_alg, 'aerosol.glomap_clim' )
 
