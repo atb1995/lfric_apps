@@ -56,6 +56,16 @@ contains
                                              transport_controller,             &
                                              transport_metadata)
 
+    use transport_constants_mod,       only: get_element_order_h_transport, &
+                                             get_element_order_v_transport
+    use function_space_collection_mod, only: function_space_collection
+    use function_space_mod,            only: function_space_type
+    use intermesh_mappings_alg_mod,    only: map_scalar_intermesh
+    use mesh_collection_mod,           only: mesh_collection
+    use mesh_mod,                      only: mesh_type
+    use multires_coupling_config_mod,  only: dynamics_mesh_name
+
+
     implicit none
 
     ! Arguments
@@ -76,6 +86,11 @@ contains
 
     integer(kind=i_def) :: equation_form
 
+    ! Fine mesh objects
+    type(mesh_type),             pointer :: fine_mesh
+    type(function_space_type),   pointer :: fine_fs
+    type(field_type)                     :: fine_field_in, fine_field_out
+
     ! If performing advective transport in the first outer loop, then the
     ! transport metadata needs setting here to make that choice
     ! The transport metadata will then be reset correctly within transport_field
@@ -94,7 +109,15 @@ contains
         type is (field_type)
           single_field_in => abstract_field_ptr
         end select
-
+        fine_mesh => mesh_collection%get_mesh(dynamics_mesh_name)
+        fine_fs => function_space_collection%get_fs(                         &
+            fine_mesh,                                                       &
+            get_element_order_h_transport(),                                   &
+            get_element_order_v_transport(),                                   &
+            single_field_in%which_function_space()                             &
+        )
+        call fine_field_in%initialise(fine_fs)
+        call fine_field_out%initialise(fine_fs)
         call fields_out%get_field(                                             &
                 trim(single_field_in%get_name()), single_field_out             &
         )
@@ -103,6 +126,9 @@ contains
                 "Advecting "//  trim(single_field_in%get_name()),              &
                 LOG_LEVEL_DEBUG                                                &
         )
+
+        ! Map to fine mesh ------------------------------------------------- !
+        call map_scalar_intermesh(fine_field_in, single_field_in)
 
         ! -------------------------------------------------------------------- !
         ! Transport depending on equation
@@ -126,7 +152,7 @@ contains
         case ( equation_form_advective, equation_form_consistent )
 
           call transport_field(                                                &
-                  single_field_out, single_field_in, transport_controller,     &
+                  fine_field_out, fine_field_in, transport_controller,     &
                   transport_metadata                                           &
           )
 
@@ -136,7 +162,7 @@ contains
         case ( equation_form_conservative )
 
           call transport_rho_times_field_alg(                                  &
-                  single_field_out, single_field_in, transport_controller,     &
+                  fine_field_out, fine_field_in, transport_controller,     &
                   transport_metadata                                           &
           )
 
@@ -150,6 +176,8 @@ contains
           )
 
         end select
+        ! Map to dynamics mesh ----------------------------------------------- !
+        call map_scalar_intermesh(single_field_out, fine_field_out)
       end do ! if ( .not. iterator%has_next() ) exit
     end if ! fields_in%get_length() > 0
 
