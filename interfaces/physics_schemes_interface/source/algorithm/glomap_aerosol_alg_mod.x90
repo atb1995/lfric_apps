@@ -27,7 +27,8 @@ module glomap_aerosol_alg_mod
                                        only: enforce_lower_bound_kernel_type
   use mesh_mod,                        only: mesh_type
   use fs_continuity_mod,               only: Wtheta
-  use intermesh_mappings_alg_mod,      only: map_scalar_intermesh
+  use intermesh_mappings_alg_mod,      only: map_scalar_intermesh, &
+                                             map_mr_intermesh
 
   implicit none
 
@@ -40,18 +41,24 @@ contains
   !>@details The UM GLOMAP-mode aerosol climatology scheme calculates:
   !>             1) CDNC ( via Jones method doi:10.1038/370450a0 )
   !>             2) Fields required by RADAER, if this is a radiation timestep
+  !>@param[in]     config                Application namelist configuration object
   !>@param[in,out] aerosol_fields        glomap_aerosol related fields
   !>@param[in]     cloud_fields          humidity related fields
   !>@param[in]     theta_in_wth          Potential temperature (theta) wth space
   !>@param[in]     exner_in_wth          Exner Pressure in theta space
   !>@param[in]     mr                    Mixing ratios at time level n
+  !>@param[in]     rho                   Density field
+  !>@param[in]     rho_aero              Density field on aerosol mesh
   !>@param[in]     timestep              Current timestep number
 
-  subroutine glomap_aerosol_alg( aerosol_fields,                               &
+  subroutine glomap_aerosol_alg( config,                                       &
+                                 aerosol_fields,                               &
                                  cloud_fields,                                 &
                                  theta_in_wth,                                 &
                                  exner_in_wth,                                 &
                                  mr_n,                                         &
+                                 rho,                                          &
+                                 rho_aero,                                     &
                                  timestep )
 
     use glomap_aerosol_kernel_mod, only: glomap_aerosol_kernel_type
@@ -59,11 +66,14 @@ contains
     implicit none
 
     ! Arguments
+    type( config_type ), intent( in ) :: config
     type( field_collection_type ), intent( inout ) :: aerosol_fields
     type( field_collection_type ), intent( in    ) :: cloud_fields
     type( field_type ), intent( in ) :: theta_in_wth
     type( field_type ), intent( in ) :: exner_in_wth
     type( field_type ), intent( in ) :: mr_n(nummr)
+    type( field_type ), intent( in ) :: rho
+    type( field_type ), intent( in ) :: rho_aero
     integer( kind=i_def ), intent( in ) :: timestep
 
     ! Temporary unpacked fields from collection cloud_fields
@@ -141,6 +151,12 @@ contains
     type( field_type ), pointer :: cloud_drop_no_conc_aero => null()
     type( field_type ), target  :: cf_bulk_coarse, cf_liquid_coarse, cloud_drop_no_conc_coarse
     type( field_type )          :: mr_ice
+    type( field_type ), pointer :: n_acc_ins_aero  => null()
+    type( field_type ), pointer :: acc_ins_du_aero => null()
+    type( field_type ), pointer :: n_cor_ins_aero  => null()
+    type( field_type ), pointer :: cor_ins_du_aero => null()
+    type( field_type ), target  :: n_acc_ins_coarse,  acc_ins_du_coarse, &
+                                   n_cor_ins_coarse,  cor_ins_du_coarse
     integer(tik)                :: id_alg, id_diags
 
     if ( LPROF ) call start_timing( id_alg, 'aerosol.glomap_clim' )
@@ -221,11 +237,27 @@ contains
       cf_bulk_aero => cf_bulk_coarse
       cf_liquid_aero => cf_liquid_coarse
       cloud_drop_no_conc_aero => cloud_drop_no_conc_coarse
+      call n_acc_ins_coarse%initialise(vector_space = wth_aero)
+      call acc_ins_du_coarse%initialise(vector_space = wth_aero)
+      call n_cor_ins_coarse%initialise(vector_space = wth_aero)
+      call cor_ins_du_coarse%initialise(vector_space = wth_aero)
+      call map_mr_intermesh(config, n_acc_ins_coarse, n_acc_ins, rho_aero, rho)
+      call map_mr_intermesh(config, acc_ins_du_coarse, acc_ins_du, rho_aero, rho)
+      call map_mr_intermesh(config, n_cor_ins_coarse, n_cor_ins, rho_aero, rho)
+      call map_mr_intermesh(config, cor_ins_du_coarse, cor_ins_du, rho_aero, rho)
+      n_acc_ins_aero => n_acc_ins_coarse
+      acc_ins_du_aero => acc_ins_du_coarse
+      n_cor_ins_aero => n_cor_ins_coarse
+      cor_ins_du_aero => cor_ins_du_coarse
     else
       ! Unpack fields from cloud_fields
       call cloud_fields%get_field('bulk_fraction', cf_bulk_aero)
       call cloud_fields%get_field('liquid_fraction', cf_liquid_aero)
       call aerosol_fields%get_field('cloud_drop_no_conc', cloud_drop_no_conc_aero)
+      call aerosol_fields%get_field('n_acc_ins', n_acc_ins_aero)
+      call aerosol_fields%get_field('acc_ins_du', acc_ins_du_aero)
+      call aerosol_fields%get_field('n_cor_ins', n_cor_ins_aero)
+      call aerosol_fields%get_field('cor_ins_du', cor_ins_du_aero)
     end if
 
     ! Calculate total ice field
@@ -236,10 +268,10 @@ contains
     end if
 
     ! Remove any negative values in these fields
-    call invoke(enforce_lower_bound_kernel_type(acc_ins_du, 0.0_r_def), &
-                enforce_lower_bound_kernel_type(n_acc_ins,  0.0_r_def), &
-                enforce_lower_bound_kernel_type(cor_ins_du, 0.0_r_def), &
-                enforce_lower_bound_kernel_type(n_cor_ins,  0.0_r_def) )
+    call invoke(enforce_lower_bound_kernel_type(acc_ins_du_aero, 0.0_r_def), &
+                enforce_lower_bound_kernel_type(n_acc_ins_aero,  0.0_r_def), &
+                enforce_lower_bound_kernel_type(cor_ins_du_aero, 0.0_r_def), &
+                enforce_lower_bound_kernel_type(n_cor_ins_aero,  0.0_r_def) )
 
     ! Logical to determine if the radiation scheme will be called on this
     ! timestep
@@ -272,10 +304,10 @@ contains
                                             n_ait_ins,                         &
                                             ait_ins_bc,                        &
                                             ait_ins_om,                        &
-                                            n_acc_ins,                         &
-                                            acc_ins_du,                        &
-                                            n_cor_ins,                         &
-                                            cor_ins_du,                        &
+                                            n_acc_ins_aero,                    &
+                                            acc_ins_du_aero,                   &
+                                            n_cor_ins_aero,                    &
+                                            cor_ins_du_aero,                   &
                                             drydp_ait_sol,                     &
                                             drydp_acc_sol,                     &
                                             drydp_cor_sol,                     &
@@ -312,6 +344,10 @@ contains
                                             cloud_drop_no_conc_aero ))
     if ( coarse_rad_aerosol ) then
       call map_scalar_intermesh(cloud_drop_no_conc, cloud_drop_no_conc_aero, lowest_order_flag=lowest_order_aero_flag)
+      call map_scalar_intermesh(n_acc_ins, n_acc_ins_aero, lowest_order_flag=lowest_order_aero_flag)
+      call map_scalar_intermesh(acc_ins_du, acc_ins_du_aero, lowest_order_flag=lowest_order_aero_flag)
+      call map_scalar_intermesh(n_cor_ins, n_cor_ins_aero, lowest_order_flag=lowest_order_aero_flag)
+      call map_scalar_intermesh(cor_ins_du, cor_ins_du_aero, lowest_order_flag=lowest_order_aero_flag)
     end if
     if ( LPROF ) call stop_timing( id_alg, 'aerosol.glomap_clim' )
 
