@@ -342,6 +342,10 @@ contains
       flux_precomputations => transport_controller%get_flux_precomputations()
       flux_this_outer => flux_precomputations%get_total_ref_flux()
       call invoke( inc_X_plus_Y(total_dry_flux, flux_this_outer) )
+    else
+      flux_precomputations => transport_controller%get_flux_precomputations()
+      flux_this_outer => flux_precomputations%get_total_ref_flux()
+      call invoke( setval_X(total_dry_flux, flux_this_outer) )
     end if
 
     ! Check negative reference fields at this point
