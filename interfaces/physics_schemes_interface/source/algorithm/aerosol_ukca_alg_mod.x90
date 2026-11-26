@@ -1651,10 +1651,10 @@ contains
       call log_event( 'Mapping mr', LOG_LEVEL_INFO )
       call map_mr_bundle_intermesh(config, mr_coarse, mr, rho_coarse, state(igh_d))
       ! Calculate total ice field
-      call mr_coarse(imr_ci)%copy_field_properties(mr_ice_coarse)
-      call invoke(setval_X(mr_ice_coarse, mr_coarse(imr_ci)))
+      call mr_coarse(imr_s)%copy_field_properties(mr_ice_coarse)
+      call invoke(setval_X(mr_ice_coarse, mr_coarse(imr_s)))
       if (microphysics_casim) then
-        call invoke(inc_X_plus_Y(mr_ice_coarse, mr_coarse(imr_s)))
+        call invoke(inc_X_plus_Y(mr_ice_coarse, mr_coarse(imr_ci)))
       end if
 
       
