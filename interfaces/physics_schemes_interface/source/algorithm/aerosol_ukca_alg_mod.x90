@@ -1808,8 +1808,8 @@ contains
         call invoke( setval_X(mr_coarse(i_mr), mr(i_mr)) )
       end do
       ! Calculate total ice field
-      call mr_coarse(imr_ci)%copy_field_properties(mr_ice_coarse)
-      call invoke(setval_X(mr_ice_coarse, mr_coarse(imr_ci)))
+      call mr_coarse(imr_s)%copy_field_properties(mr_ice_coarse)
+      call invoke(setval_X(mr_ice_coarse, mr_coarse(imr_s)))
   
       mr_aero => mr_coarse
       mr_ice_aero => mr_ice_coarse
