@@ -1439,7 +1439,7 @@ contains
                                ) ! end of invoke
 
 
-    if (coarse_rad_aerosol and outer == outer_iterations) then
+    if (coarse_rad_aerosol .and. outer == outer_iterations) then
       call map_mr_inc_intermesh(config, n_acc_ins, n_acc_ins_aero, rho_coarse, rho)
       call map_mr_inc_intermesh(config, acc_ins_du, acc_ins_du_aero, rho_coarse, rho)
       call map_mr_inc_intermesh(config, n_cor_ins, n_cor_ins_aero, rho_coarse, rho)
