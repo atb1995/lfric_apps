@@ -49,7 +49,7 @@
   <field id="emiss_mecho" name="emissions_MeCHO" long_name="MeCHO surf emissions" unit="kg m-2 s-1" grid_ref="var_face" />
   <field id="emiss_nh3" name="emissions_NH3" long_name="ammonia gas emissions" unit="kg m-2 s-1" grid_ref="var_face" />
   <field id="emiss_no" name="emissions_NO" long_name="NOx surface emissions" unit="kg m-2 s-1" grid_ref="var_face" />
-  <field id="emiss_meoh" name="emissions_MeOH" long_name="Biogenic surface methanol (CH3OH) emissions" unit="kg m-2 s-1" domain_ref="face" />
+  <field id="emiss_meoh" name="emissions_MeOH" long_name="Biogenic surface methanol (CH3OH) emissions" unit="kg m-2 s-1" grid_ref="var_face" />
   <field id="emiss_no_aircrft" name="emissions_NO_aircrft" long_name="NOx aircraft emissions" unit="kg m-2 s-1" grid_ref="var_full_face_grid" />
   <field id="o3p" name="o3p" long_name="mass_fraction_of_oxygen_ground_state_in_air" unit="kg kg-1" grid_ref="var_full_face_grid" />
   <field id="o1d" name="o1d" long_name="mass_fraction_of_oxygen_excited_state_in_air" unit="kg kg-1" grid_ref="var_full_face_grid" />
