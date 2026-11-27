@@ -52,6 +52,9 @@ contains
   !>@details The UM Gregory Rowntree convection scheme does:
   !>             vertical mixing of heat, momentum and moisture,
   !>             as documented in UMDP27
+  !> Profiling separates coarse tracer field setup, prolongation, the scheme
+  !> invoke (including increment reset and generated halo exchanges), and
+  !> increment return to the coarse mesh.
   !>@param[in]     config              Application namelist configuration object
   !>@param[in,out] du_conv_w2          Wind increment in w2
   !>@param[in,out] theta_latest        Current estimate of theta
@@ -524,7 +527,7 @@ contains
     type( mesh_type ), pointer  :: mesh => null()
     type( mesh_type ), pointer  :: aerosol_mesh => null()
     integer(i_def) :: ncells
-    integer( tik)               :: id
+    integer( tik)               :: id, id_coarse_setup, id_prolong, id_invoke, id_increment_return
 
     if ( LPROF ) call start_timing( id, 'convection.gr' )
 
@@ -711,6 +714,7 @@ contains
     delta      => get_delta_at_wtheta(mesh)
 
     if (coarse_rad_aerosol) then
+      if ( LPROF ) call start_timing( id_coarse_setup, 'convection.gr.coarse_setup' )
       aerosol_mesh => cor_ins_du%get_mesh()
       w3_coarse => function_space_collection%get_fs( aerosol_mesh,  0, 0, W3 )
       call rho_coarse%initialise(vector_space = w3_coarse)
@@ -829,7 +833,10 @@ contains
       call ait_ins_bc_fine%initialise(vector_space = wth_fine)
       call ait_ins_om_fine%initialise(vector_space = wth_fine)
 
+      if ( LPROF ) call stop_timing( id_coarse_setup, 'convection.gr.coarse_setup' )
+
       if (outer == outer_iterations) then
+        if ( LPROF ) call start_timing( id_prolong, 'convection.gr.prolong' )
 
         call map_rho_intermesh(rho_coarse, rho)
         call map_mr_intermesh(config, n_acc_ins_fine, n_acc_ins, rho, rho_coarse)
@@ -944,6 +951,7 @@ contains
         call map_mr_intermesh(config, n_ait_ins_fine, n_ait_ins, rho, rho_coarse)
         call map_mr_intermesh(config, ait_ins_bc_fine, ait_ins_bc, rho, rho_coarse)
         call map_mr_intermesh(config, ait_ins_om_fine, ait_ins_om, rho, rho_coarse)
+        if ( LPROF ) call stop_timing( id_prolong, 'convection.gr.prolong' )
       end if 
       
       ! Point _aero pointers to _fine fields
@@ -1247,6 +1255,7 @@ contains
     call um_sizes_init(ncells)
     
     ! set increments to zero
+    if ( LPROF ) call start_timing( id_invoke, 'convection.gr.invoke' )
     call invoke( setval_c(dt_conv, 0.0_r_def),          &
                  setval_c(dmv_conv, 0.0_r_def),         &
                  setval_c(dmcl_conv, 0.0_r_def),        &
@@ -1437,9 +1446,11 @@ contains
                       massflux_up_cmpta,                                  &
                       cca_unadjusted, dth_conv_noshal, dmv_conv_noshal )  &
                                ) ! end of invoke
+    if ( LPROF ) call stop_timing( id_invoke, 'convection.gr.invoke' )
 
 
     if (coarse_rad_aerosol .and. outer == outer_iterations) then
+      if ( LPROF ) call start_timing( id_increment_return, 'convection.gr.increment_return' )
       call map_mr_inc_intermesh(config, n_acc_ins, n_acc_ins_aero, rho_coarse, rho)
       call map_mr_inc_intermesh(config, acc_ins_du, acc_ins_du_aero, rho_coarse, rho)
       call map_mr_inc_intermesh(config, n_cor_ins, n_cor_ins_aero, rho_coarse, rho)
@@ -1552,6 +1563,7 @@ contains
       call map_mr_inc_intermesh(config, n_ait_ins, n_ait_ins_aero, rho_coarse, rho)
       call map_mr_inc_intermesh(config, ait_ins_bc, ait_ins_bc_aero, rho_coarse, rho)
       call map_mr_inc_intermesh(config, ait_ins_om, ait_ins_om_aero, rho_coarse, rho)
+      if ( LPROF ) call stop_timing( id_increment_return, 'convection.gr.increment_return' )
  	  end if
 
     ! Switch UM back to columns
