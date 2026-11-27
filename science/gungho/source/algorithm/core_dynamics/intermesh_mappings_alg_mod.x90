@@ -30,6 +30,8 @@ module intermesh_mappings_alg_mod
   use mesh_collection_mod,            only : mesh_collection
   use mesh_mod,                       only : mesh_type
   use mr_indices_mod,                 only : nummr
+  use timing_mod,                     only : start_timing, stop_timing, &
+                                             tik, LPROF
 
   ! Configuration modules
   use multires_coupling_config_mod, only: recovery_order,                 &
@@ -98,6 +100,9 @@ contains
     type(function_space_type), pointer :: sh_w3_fs
     integer(kind=i_def) :: element_order_h
     integer(kind=i_def) :: element_order_v
+    integer(tik)        :: id
+
+    if ( LPROF ) call start_timing( id, 'intermesh.shifted_rho' )
 
     element_order_h = primary_rho%get_element_order_h()
     element_order_v = primary_rho%get_element_order_v()
@@ -123,6 +128,8 @@ contains
                                                primary_rho,  &
                                                detj_shifted, &
                                                detj_primary) )
+
+    if ( LPROF ) call stop_timing( id, 'intermesh.shifted_rho' )
 
   end subroutine obtain_shifted_rho
 
@@ -1086,8 +1093,13 @@ contains
   !> @param[in]     source_mr      Input mixing ratio to be mapped
   !> @param[in]     target_rho     Target dry density in (primary) W3
   !> @param[in]     source_rho     Source dry density in (primary) W3
+  !> @param[in]     target_rho_sh  Optional precomputed target density in
+  !!                               shifted W3 (computed here if absent)
+  !> @param[in]     source_rho_sh  Optional precomputed source density in
+  !!                               shifted W3 (computed here if absent)
   subroutine map_mr_intermesh( config, target_mr, source_mr, &
-                               target_rho, source_rho )
+                               target_rho, source_rho,       &
+                               target_rho_sh, source_rho_sh )
 
     use sci_adjust_lambda_kernel_mod, only: adjust_lambda_kernel_type
     use sci_apply_lambda_kernel_mod,  only: apply_lambda_kernel_type
@@ -1100,13 +1112,17 @@ contains
     type(field_type), intent(in)    :: source_mr
     type(field_type), intent(in)    :: target_rho
     type(field_type), intent(in)    :: source_rho
+    type(field_type), intent(in), target, optional :: target_rho_sh
+    type(field_type), intent(in), target, optional :: source_rho_sh
 
     type(mesh_type),        pointer :: source_mesh
     type(mesh_type),        pointer :: target_mesh
     integer(kind=i_def)             :: source_ncells
     integer(kind=i_def)             :: target_ncells
-    type(field_type)                :: target_rho_sh_w3
-    type(field_type)                :: source_rho_sh_w3
+    type(field_type), target        :: local_target_rho_sh
+    type(field_type), target        :: local_source_rho_sh
+    type(field_type), pointer       :: target_rho_sh_w3
+    type(field_type), pointer       :: source_rho_sh_w3
     type(field_type)                :: lambda
     type(field_type)                :: inject_mr_field
     logical(kind=l_def)             :: moisture_advective
@@ -1124,9 +1140,19 @@ contains
     else
       moisture_advective = check_moisture_advective()
       if ( .not. moisture_advective ) then
-        ! Pre-mapping calculations
-        call obtain_shifted_rho(config, target_rho_sh_w3, target_rho)
-        call obtain_shifted_rho(config, source_rho_sh_w3, source_rho)
+        ! Pre-mapping calculations, unless supplied by the caller
+        if ( present(target_rho_sh) ) then
+          target_rho_sh_w3 => target_rho_sh
+        else
+          call obtain_shifted_rho(config, local_target_rho_sh, target_rho)
+          target_rho_sh_w3 => local_target_rho_sh
+        end if
+        if ( present(source_rho_sh) ) then
+          source_rho_sh_w3 => source_rho_sh
+        else
+          call obtain_shifted_rho(config, local_source_rho_sh, source_rho)
+          source_rho_sh_w3 => local_source_rho_sh
+        end if
       end if
 
       ! ---------------------------------------------------------------------- !
@@ -1201,8 +1227,13 @@ contains
   !> @param[in]     fine_mr_np1  Fine mixing ratio after the fine-mesh update
   !> @param[in]     coarse_rho   Dry density on the coarse mesh
   !> @param[in]     fine_rho     Dry density on the fine mesh
+  !> @param[in]     coarse_rho_sh  Optional precomputed coarse density in
+  !!                               shifted W3 (computed here if absent)
+  !> @param[in]     fine_rho_sh    Optional precomputed fine density in
+  !!                               shifted W3 (computed here if absent)
   subroutine map_mr_inc_intermesh( config, coarse_mr, fine_mr_np1, &
-                                   coarse_rho, fine_rho )
+                                   coarse_rho, fine_rho,           &
+                                   coarse_rho_sh, fine_rho_sh )
 
     implicit none
 
@@ -1212,6 +1243,8 @@ contains
     type(field_type), intent(in)    :: fine_mr_np1
     type(field_type), intent(in)    :: coarse_rho
     type(field_type), intent(in)    :: fine_rho
+    type(field_type), intent(in), target, optional :: coarse_rho_sh
+    type(field_type), intent(in), target, optional :: fine_rho_sh
 
     type(mesh_type),           pointer :: fine_mesh
     type(mesh_type),           pointer :: coarse_mesh
@@ -1220,46 +1253,87 @@ contains
     type(field_type)                   :: fine_mr_before
     type(field_type)                   :: fine_mr_inc
     type(field_type)                   :: coarse_mr_inc
-    type(field_type)                   :: coarse_rho_sh_w3
-    type(field_type)                   :: fine_rho_sh_w3
+    type(field_type), target           :: local_coarse_rho_sh
+    type(field_type), target           :: local_fine_rho_sh
+    type(field_type), pointer          :: coarse_rho_sh_w3
+    type(field_type), pointer          :: fine_rho_sh_w3
     logical(kind=l_def)                :: moisture_advective
+    integer(tik)                       :: id_init, id_baseline, id_inc, &
+                                          id_restrict, id_apply
 
     fine_mesh   => fine_mr_np1%get_mesh()
     coarse_mesh => coarse_mr%get_mesh()
 
+    moisture_advective = check_moisture_advective()
+    coarse_rho_sh_w3 => null()
+    fine_rho_sh_w3   => null()
+    if ( .not. moisture_advective ) then
+      if ( present(coarse_rho_sh) ) then
+        coarse_rho_sh_w3 => coarse_rho_sh
+      else
+        call obtain_shifted_rho( config, local_coarse_rho_sh, coarse_rho )
+        coarse_rho_sh_w3 => local_coarse_rho_sh
+      end if
+      if ( present(fine_rho_sh) ) then
+        fine_rho_sh_w3 => fine_rho_sh
+      else
+        call obtain_shifted_rho( config, local_fine_rho_sh, fine_rho )
+        fine_rho_sh_w3 => local_fine_rho_sh
+      end if
+    end if
+
     if ( fine_mesh%get_ncells() <= coarse_mesh%get_ncells() ) then
       ! Not a restriction, so there is nothing to gain from using increments
-      call map_mr_intermesh( config, coarse_mr, fine_mr_np1, &
-                             coarse_rho, fine_rho )
+      if ( moisture_advective ) then
+        call map_mr_intermesh( config, coarse_mr, fine_mr_np1, &
+                               coarse_rho, fine_rho )
+      else
+        call map_mr_intermesh( config, coarse_mr, fine_mr_np1, &
+                               coarse_rho, fine_rho,           &
+                               coarse_rho_sh_w3, fine_rho_sh_w3 )
+      end if
     else
       fs_fine   => fine_mr_np1%get_function_space()
       fs_coarse => coarse_mr%get_function_space()
 
+      if ( LPROF ) call start_timing( id_init, 'intermesh.inc.init' )
       call fine_mr_before%initialise( vector_space = fs_fine )
       call fine_mr_inc%initialise( vector_space = fs_fine )
       call coarse_mr_inc%initialise( vector_space = fs_coarse )
+      if ( LPROF ) call stop_timing( id_init, 'intermesh.inc.init' )
 
       ! Recompute the fine state that the fine-mesh update started from
-      call map_mr_intermesh( config, fine_mr_before, coarse_mr, &
-                             fine_rho, coarse_rho )
+      if ( LPROF ) call start_timing( id_baseline, 'intermesh.inc.baseline' )
+      if ( moisture_advective ) then
+        call map_mr_intermesh( config, fine_mr_before, coarse_mr, &
+                               fine_rho, coarse_rho )
+      else
+        call map_mr_intermesh( config, fine_mr_before, coarse_mr, &
+                               fine_rho, coarse_rho,              &
+                               fine_rho_sh_w3, coarse_rho_sh_w3 )
+      end if
+      if ( LPROF ) call stop_timing( id_baseline, 'intermesh.inc.baseline' )
 
       ! Increment made on the fine mesh
+      if ( LPROF ) call start_timing( id_inc, 'intermesh.inc.subtract' )
       call invoke( X_minus_Y(fine_mr_inc, fine_mr_np1, fine_mr_before) )
+      if ( LPROF ) call stop_timing( id_inc, 'intermesh.inc.subtract' )
 
       ! Restrict the increment
-      moisture_advective = check_moisture_advective()
+      if ( LPROF ) call start_timing( id_restrict, 'intermesh.inc.restrict' )
       if ( moisture_advective ) then
         call restrict_scalar( coarse_mr_inc, fine_mr_inc )
       else
-        call obtain_shifted_rho( config, coarse_rho_sh_w3, coarse_rho )
-        call obtain_shifted_rho( config, fine_rho_sh_w3, fine_rho )
         call restrict_mr( coarse_mr_inc, fine_mr_inc, &
                           coarse_rho_sh_w3, fine_rho_sh_w3 )
       end if
+      if ( LPROF ) call stop_timing( id_restrict, 'intermesh.inc.restrict' )
 
       ! Apply it to the coarse state and keep it non-negative
+      if ( LPROF ) call start_timing( id_apply, 'intermesh.inc.apply' )
       call invoke( inc_X_plus_Y(coarse_mr, coarse_mr_inc),              &
                    enforce_lower_bound_kernel_type(coarse_mr, 0.0_r_def) )
+      if ( LPROF ) call stop_timing( id_apply, 'intermesh.inc.apply' )
     end if
 
   end subroutine map_mr_inc_intermesh
